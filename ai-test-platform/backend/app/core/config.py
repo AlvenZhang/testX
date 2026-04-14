@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     # 沙箱配置
     sandbox_image: str = "ai-test-sandbox:latest"
     sandbox_timeout: int = 3600
+    registry_url: str = ""
+
+    # Appium 配置
+    appium_host: str = "localhost"
+    appium_port: str = "4723"
+    android_sdk_path: str = ""
+    ios_sdk_path: str = ""
 
 
 @lru_cache
