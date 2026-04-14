@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Layout } from './components/Layout';
+import { DashboardPage } from './pages/Dashboard';
 import { ProjectsPage } from './pages/Projects';
 import { RequirementsPage } from './pages/Requirements';
 import { TestCasesPage } from './pages/TestCases';
@@ -7,14 +8,16 @@ import { TestCodePage } from './pages/TestCode';
 import { TestPlansPage } from './pages/TestPlans';
 import { TestRunsPage } from './pages/TestRuns';
 import { ReportsPage } from './pages/Reports';
+import { DevicesPage } from './pages/Devices';
 
-type PageKey = 'projects' | 'requirements' | 'testcases' | 'testcode' | 'testplans' | 'testruns' | 'reports';
+type PageKey = 'dashboard' | 'projects' | 'requirements' | 'testcases' | 'testcode' | 'testplans' | 'testruns' | 'reports' | 'devices';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<PageKey>('projects');
+  const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
 
   const renderPage = () => {
     switch (currentPage) {
+      case 'dashboard': return <DashboardPage />;
       case 'projects': return <ProjectsPage />;
       case 'requirements': return <RequirementsPage />;
       case 'testcases': return <TestCasesPage />;
@@ -22,7 +25,8 @@ function App() {
       case 'testplans': return <TestPlansPage />;
       case 'testruns': return <TestRunsPage />;
       case 'reports': return <ReportsPage />;
-      default: return <ProjectsPage />;
+      case 'devices': return <DevicesPage />;
+      default: return <DashboardPage />;
     }
   };
 

@@ -1,10 +1,12 @@
 """AI 自动化测试生成工作流"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 import uuid
 
 from ...core.database import get_db
 from ...services.ai_service import get_ai_service
+from ...services.impact_service import get_impact_service
 from ...models.requirement import Requirement
 from ...models.test_case import TestCase
 from ...models.test_code import TestCode
@@ -102,4 +104,53 @@ async def generate_tests(
     }
 
 
-from sqlalchemy import select
+@router.post("/analyze-impact/{requirement_id}")
+async def analyze_impact(
+    requirement_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    分析需求变更的影响
+    1. 获取变更的需求
+    2. 获取所有相关需求和测试代码
+    3. AI 分析影响范围
+    """
+    # 获取变更的需求
+    result = await db.execute(
+        select(Requirement).where(Requirement.id == requirement_id)
+    )
+    requirement = result.scalar_one_or_none()
+    if not requirement:
+        raise HTTPException(status_code=404, detail="Requirement not found")
+
+    # 获取所有需求
+    all_reqs_result = await db.execute(
+        select(Requirement).where(Requirement.project_id == requirement.project_id)
+    )
+    all_requirements = [
+        {"id": r.id, "title": r.title, "description": r.description}
+        for r in all_reqs_result.scalars().all()
+    ]
+
+    # 获取所有测试代码
+    all_codes_result = await db.execute(
+        select(TestCode).where(TestCode.project_id == requirement.project_id)
+    )
+    all_test_codes = [
+        {"id": c.id, "requirement_id": c.requirement_id, "code_content": c.code_content[:200]}
+        for c in all_codes_result.scalars().all()
+    ]
+
+    # AI 分析影响
+    impact_service = get_impact_service()
+    impact_result = await impact_service.analyze_impact(
+        {"id": requirement.id, "title": requirement.title, "description": requirement.description},
+        all_requirements,
+        all_test_codes
+    )
+
+    return {
+        "requirement_id": requirement_id,
+        "impact_analysis": impact_result,
+    }
+

@@ -1,5 +1,5 @@
 import { Layout as AntLayout, Menu } from 'antd';
-import { ProjectOutlined, FileTextOutlined, ApiOutlined, BugOutlined, ExperimentOutlined, FileSearchOutlined, CodeOutlined } from '@ant-design/icons';
+import { ProjectOutlined, FileTextOutlined, ApiOutlined, BugOutlined, ExperimentOutlined, FileSearchOutlined, CodeOutlined, DashboardOutlined, MobileOutlined } from '@ant-design/icons';
 import { useState } from 'react';
 
 const { Header, Content, Sider } = AntLayout;
@@ -14,6 +14,7 @@ export function Layout({ children, selectedKey, onMenuClick }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const menuItems = [
+    { key: 'dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
     { key: 'projects', icon: <ProjectOutlined />, label: '项目' },
     { key: 'requirements', icon: <FileTextOutlined />, label: '需求' },
     { key: 'testcases', icon: <BugOutlined />, label: '用例' },
@@ -21,6 +22,7 @@ export function Layout({ children, selectedKey, onMenuClick }: LayoutProps) {
     { key: 'testplans', icon: <ExperimentOutlined />, label: '方案' },
     { key: 'testruns', icon: <ApiOutlined />, label: '运行' },
     { key: 'reports', icon: <FileSearchOutlined />, label: '报告' },
+    { key: 'devices', icon: <MobileOutlined />, label: '设备' },
   ];
 
   return (
