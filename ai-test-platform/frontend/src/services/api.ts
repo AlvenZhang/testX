@@ -133,4 +133,25 @@ export const mobileExecutionApi = {
     api.get<{ run_id: string; logs: string }>(`/mobile-executions/logs/${runId}`),
 };
 
+// AI
+export const aiApi = {
+  chat: (data: { messages: Array<{ role: string; content: string }> }) =>
+    api.post<string>('/ai/chat', data),
+
+  analyzeRequirement: (data: { requirement_id: string }) =>
+    api.post<{ test_points: string[]; risk_points: string[]; suggested_test_types: string[] }>('/ai/analyze-requirement', data),
+
+  generateTestCases: (data: { requirement_id: string }) =>
+    api.post<Array<{ case_id: string; title: string; steps?: string; expected_result?: string; priority?: string }>>('/ai/generate-test-cases', data),
+
+  generateTestCode: (data: { requirement_id: string; test_cases: Array<{ case_id: string; title: string }> }) =>
+    api.post<string>('/ai/generate-test-code', data),
+
+  analyzeCodeImpact: (data: { code_changes: Array<{ file: string; diff: string }> }) =>
+    api.post<string[]>('/ai/analyze-code-impact', data),
+
+  fixTestCode: (data: { failed_code: string; error_message: string; test_type: string }) =>
+    api.post<{ fixed_code: string; explanation: string }>('/ai/fix-test-code', data),
+};
+
 export default api;
