@@ -3,6 +3,7 @@ import { Table, Button, Modal, Form, Input, Select, message, Space, Popconfirm, 
 import { PlusOutlined, DeleteOutlined, EditOutlined, RocketOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { requirementApi, projectApi, workflowApi } from '../services/api';
+import { MonacoEditor } from '../components/MonacoEditor';
 import type { Requirement, Project } from '../types';
 
 const priorityOptions = [

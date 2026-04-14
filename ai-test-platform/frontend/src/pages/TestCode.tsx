@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, message, Space, Tag, Drawer } from 'antd';
+import { Table, Button, message, Space, Tag, Drawer, Select } from 'antd';
 import { PlayCircleOutlined, CodeOutlined } from '@ant-design/icons';
 import { testCodeApi, projectApi, executionApi } from '../services/api';
+import { MonacoEditor } from '../components/MonacoEditor';
 import type { Project } from '../types';
 
 interface TestCodeItem {
@@ -23,6 +24,7 @@ export function TestCodePage() {
   const [codeContent, setCodeContent] = useState('');
   const [logVisible, setLogVisible] = useState(false);
   const [execResult, setExecResult] = useState<{ logs: string; status: string; duration_ms: number } | null>(null);
+  const [editorLanguage, setEditorLanguage] = useState('python');
 
   const fetchProjects = async () => {
     const res = await projectApi.list();
@@ -61,13 +63,27 @@ export function TestCodePage() {
 
   const handleViewCode = async (id: string) => {
     const res = await testCodeApi.get(id);
-    setCodeContent(res.data.code_content);
+    const code = res.data.code_content || res.data;
+    setCodeContent(typeof code === 'string' ? code : JSON.stringify(code, null, 2));
     setSelectedCode(id);
+    // 根据框架设置语言
+    const item = data.find(d => d.id === id);
+    if (item?.framework) {
+      if (item.framework.includes('pytest') || item.framework.includes('python')) {
+        setEditorLanguage('python');
+      } else if (item.framework.includes('jest') || item.framework.includes('javascript')) {
+        setEditorLanguage('javascript');
+      } else if (item.framework.includes('junit') || item.framework.includes('java')) {
+        setEditorLanguage('java');
+      } else {
+        setEditorLanguage('python');
+      }
+    }
   };
 
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id', render: (v: string) => v.slice(0, 8) + '...' },
-    { title: '框架', dataIndex: 'framework', key: 'framework' },
+    { title: '框架', dataIndex: 'framework', key: 'framework', render: (v: string) => <Tag color="blue">{v}</Tag> },
     { title: '状态', dataIndex: 'status', key: 'status', render: (v: string) => <Tag color={v === 'active' ? 'green' : 'red'}>{v}</Tag> },
     { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (v: string) => new Date(v).toLocaleString() },
     {
@@ -90,22 +106,51 @@ export function TestCodePage() {
     <div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} />
 
-      {/* 代码查看抽屉 */}
-      <Drawer title="测试代码" open={!!selectedCode} onClose={() => setSelectedCode(null)} width={700}>
-        <pre style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-          {codeContent}
-        </pre>
+      {/* 代码查看抽屉 - 使用 MonacoEditor */}
+      <Drawer
+        title="测试代码"
+        open={!!selectedCode}
+        onClose={() => setSelectedCode(null)}
+        width={800}
+        extra={
+          <Select
+            value={editorLanguage}
+            onChange={setEditorLanguage}
+            style={{ width: 120 }}
+            options={[
+              { value: 'python', label: 'Python' },
+              { value: 'javascript', label: 'JavaScript' },
+              { value: 'java', label: 'Java' },
+              { value: 'json', label: 'JSON' },
+            ]}
+          />
+        }
+      >
+        <MonacoEditor
+          value={codeContent}
+          language={editorLanguage}
+          readOnly={true}
+          height="500px"
+        />
       </Drawer>
 
       {/* 执行日志抽屉 */}
       <Drawer title="执行结果" open={logVisible} onClose={() => setLogVisible(false)} width={700}>
         {execResult && (
           <div>
-            <p><Tag color={execResult.status === 'success' ? 'green' : 'red'}>状态: {execResult.status}</Tag> 耗时: {execResult.duration_ms}ms</p>
+            <p>
+              <Tag color={execResult.status === 'success' ? 'green' : 'red'}>
+                状态: {execResult.status}
+              </Tag>
+              <Tag style={{ marginLeft: 8 }}>耗时: {execResult.duration_ms}ms</Tag>
+            </p>
             <h4>日志:</h4>
-            <pre style={{ fontSize: 11, background: '#f5f5f5', padding: 16, maxHeight: 400, overflow: 'auto' }}>
-              {execResult.logs || '无日志输出'}
-            </pre>
+            <MonacoEditor
+              value={execResult.logs || '无日志输出'}
+              language="plaintext"
+              readOnly={true}
+              height="400px"
+            />
           </div>
         )}
       </Drawer>

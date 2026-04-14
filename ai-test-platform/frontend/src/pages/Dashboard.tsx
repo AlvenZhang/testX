@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag } from 'antd';
+import { Card, Row, Col, Table, Tag } from 'antd';
 import { ProjectOutlined, FileTextOutlined, BugOutlined, PlayCircleOutlined } from '@ant-design/icons';
 import { projectApi, requirementApi, testCaseApi, testRunApi } from '../services/api';
+import { TestTrendChart, PassRateChart } from '../components/Charts';
 import type { Project, Requirement, TestCase, TestRun } from '../types';
 
 export function DashboardPage() {
@@ -40,6 +41,10 @@ export function DashboardPage() {
   const successRuns = testRuns.filter(r => r.status === 'success').length;
   const failedRuns = testRuns.filter(r => r.status === 'failed').length;
 
+  // 生成测试趋势数据
+  const trendData = generateTrendData(testRuns);
+
+  // 最近测试运行
   const recentRuns = testRuns
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5);
@@ -63,42 +68,38 @@ export function DashboardPage() {
     <div>
       <Row gutter={16}>
         <Col span={6}>
-          <Card>
-            <Statistic
+          <Card loading={loading}>
+            <Card.Meta
               title="项目"
-              value={projects.length}
-              prefix={<ProjectOutlined />}
-              loading={loading}
+              description={projects.length}
+              avatar={<ProjectOutlined style={{ fontSize: 24, color: '#1890ff' }} />}
             />
           </Card>
         </Col>
         <Col span={6}>
-          <Card>
-            <Statistic
+          <Card loading={loading}>
+            <Card.Meta
               title="需求"
-              value={requirements.length}
-              prefix={<FileTextOutlined />}
-              loading={loading}
+              description={requirements.length}
+              avatar={<FileTextOutlined style={{ fontSize: 24, color: '#52c41a' }} />}
             />
           </Card>
         </Col>
         <Col span={6}>
-          <Card>
-            <Statistic
+          <Card loading={loading}>
+            <Card.Meta
               title="测试用例"
-              value={testCases.length}
-              prefix={<BugOutlined />}
-              loading={loading}
+              description={testCases.length}
+              avatar={<BugOutlined style={{ fontSize: 24, color: '#faad14' }} />}
             />
           </Card>
         </Col>
         <Col span={6}>
-          <Card>
-            <Statistic
+          <Card loading={loading}>
+            <Card.Meta
               title="测试运行"
-              value={testRuns.length}
-              prefix={<PlayCircleOutlined />}
-              loading={loading}
+              description={testRuns.length}
+              avatar={<PlayCircleOutlined style={{ fontSize: 24, color: '#f5222d' }} />}
             />
           </Card>
         </Col>
@@ -106,21 +107,64 @@ export function DashboardPage() {
 
       <Row gutter={16} style={{ marginTop: 24 }}>
         <Col span={12}>
-          <Card title="通过率">
-            <Statistic
-              value={testRuns.length > 0 ? (successRuns / testRuns.length * 100).toFixed(1) : 0}
-              suffix="%"
-              valueStyle={{ color: '#3f8600' }}
-            />
-            <p>成功: {successRuns} | 失败: {failedRuns}</p>
-          </Card>
+          <PassRateChart
+            passed={successRuns}
+            failed={failedRuns}
+            title="测试通过率"
+          />
         </Col>
         <Col span={12}>
-          <Card title="最近测试运行">
-            <Table columns={runColumns} dataSource={recentRuns} rowKey="id" size="small" pagination={false} />
+          <TestTrendChart
+            data={trendData}
+            title="测试趋势"
+          />
+        </Col>
+      </Row>
+
+      <Row gutter={16} style={{ marginTop: 24 }}>
+        <Col span={24}>
+          <Card title="最近测试运行" loading={loading}>
+            <Table
+              columns={runColumns}
+              dataSource={recentRuns}
+              rowKey="id"
+              size="small"
+              pagination={false}
+            />
           </Card>
         </Col>
       </Row>
     </div>
   );
+}
+
+// 生成测试趋势数据（基于最近7天的模拟数据）
+function generateTrendData(testRuns: TestRun[]) {
+  const days = 7;
+  const data = [];
+  const now = new Date();
+
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+
+    // 统计当天的测试运行
+    const dayRuns = testRuns.filter(run => {
+      const runDate = new Date(run.created_at).toISOString().split('T')[0];
+      return runDate === dateStr;
+    });
+
+    const passed = dayRuns.filter(r => r.status === 'success').length;
+    const failed = dayRuns.filter(r => r.status === 'failed').length;
+
+    data.push({
+      date: date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
+      passed: passed,
+      failed: failed,
+      total: passed + failed,
+    });
+  }
+
+  return data;
 }
