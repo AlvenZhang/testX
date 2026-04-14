@@ -1,0 +1,18 @@
+# 技术验证依赖包
+
+# V1 - FastAPI性能测试
+sqlalchemy[asyncio]>=2.0.0
+aiomysql>=0.2.0
+
+# V2 - MySQL测试
+mysql-connector-python>=8.0.0
+
+# V5 - ADB测试 (标准库即可)
+# 无需额外依赖
+
+# V6/V7 - Appium测试
+appium>=2.0.0
+requests>=2.28.0
+
+# 通用
+python-dotenv>=1.0.0
