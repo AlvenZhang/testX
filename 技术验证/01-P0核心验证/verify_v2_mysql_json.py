@@ -5,6 +5,7 @@ V2验证: MySQL JSON字段存储和查询性能测试
 
 运行: python verify_v2_mysql_json.py
 """
+import os
 import time
 import mysql.connector
 import json
