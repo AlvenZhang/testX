@@ -1,7 +1,9 @@
 """AI 服务 - 对接豆包/火山引擎 API"""
+import asyncio
+import hashlib
 import httpx
-from typing import Optional
-import json
+import redis.asyncio as redis
+from typing import Any, Optional
 
 from ..core.config import get_settings
 
@@ -9,11 +11,76 @@ from ..core.config import get_settings
 class AIService:
     """AI 服务"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         settings = get_settings()
         self.api_key = settings.ai_api_key
         self.model = settings.ai_model
         self.base_url = settings.ai_base_url
+        self.redis_client: Optional[redis.Redis] = None
+        self.cache_ttl = 3600  # 缓存1小时
+
+    async def _get_redis(self) -> Optional[redis.Redis]:
+        """懒加载 Redis 客户端"""
+        if self.redis_client is None:
+            try:
+                settings = get_settings()
+                self.redis_client = redis.from_url(settings.redis_url, decode_responses=False)
+                await self.redis_client.ping()
+            except Exception:
+                self.redis_client = None
+        return self.redis_client
+
+    def _generate_cache_key(self, messages: list[dict], temperature: float) -> str:
+        """生成缓存 key"""
+        content = f"{messages}:{temperature}"
+        return f"ai:chat:{hashlib.md5(content.encode()).hexdigest()}"
+
+    async def chat_with_cache(
+        self,
+        messages: list[dict],
+        temperature: float = 0.7,
+        use_cache: bool = True,
+    ) -> str:
+        """带缓存的 chat"""
+        if use_cache:
+            cache_key = self._generate_cache_key(messages, temperature)
+            redis_client = await self._get_redis()
+            if redis_client:
+                try:
+                    cached = await redis_client.get(cache_key)
+                    if cached:
+                        return cached.decode() if isinstance(cached, bytes) else cached
+                except Exception:
+                    pass
+
+        response = await self.chat(messages, temperature)
+
+        if use_cache and response:
+            redis_client = await self._get_redis()
+            if redis_client:
+                try:
+                    await redis_client.setex(cache_key, self.cache_ttl, response)
+                except Exception:
+                    pass
+
+        return response
+
+    async def chat_with_retry(
+        self,
+        messages: list[dict],
+        temperature: float = 0.7,
+        max_attempts: int = 3,
+    ) -> str:
+        """带指数退避的重试"""
+        for attempt in range(max_attempts):
+            try:
+                return await self.chat(messages, temperature)
+            except Exception as e:
+                if attempt == max_attempts - 1:
+                    raise
+                delay = 2 ** attempt
+                await asyncio.sleep(delay)
+        raise RuntimeError("chat_with_retry failed after all attempts")
 
     async def chat(self, messages: list[dict], temperature: float = 0.7) -> str:
         """发送对话请求"""
@@ -34,7 +101,7 @@ class AIService:
             data = response.json()
             return data["choices"][0]["message"]["content"]
 
-    async def analyze_requirement(self, requirement_title: str, requirement_description: str) -> dict:
+    async def analyze_requirement(self, requirement_title: str, requirement_description: str) -> dict[str, Any]:
         """分析需求，生成测试要点"""
         prompt = f"""分析以下需求，生成测试要点：
 
@@ -46,7 +113,7 @@ class AIService:
 - risk_points: 风险点列表
 - suggested_test_types: 建议的测试类型（web/api/mobile）
 """
-        response = await self.chat([
+        response = await self.chat_with_cache([
             {"role": "system", "content": "你是一个专业的测试架构师。"},
             {"role": "user", "content": prompt}
         ])
@@ -55,7 +122,12 @@ class AIService:
         except json.JSONDecodeError:
             return {"test_points": [], "risk_points": [], "suggested_test_types": ["web"], "raw_response": response}
 
-    async def generate_test_cases(self, requirement_title: str, requirement_description: str, test_types: list[str]) -> list[dict]:
+    async def generate_test_cases(
+        self,
+        requirement_title: str,
+        requirement_description: str,
+        test_types: list[str],
+    ) -> list[dict]:
         """生成测试用例"""
         prompt = f"""为以下需求生成测试用例：
 
@@ -72,7 +144,7 @@ class AIService:
 
 以 JSON 数组格式返回。
 """
-        response = await self.chat([
+        response = await self.chat_with_cache([
             {"role": "system", "content": "你是一个专业的测试工程师。"},
             {"role": "user", "content": prompt}
         ])
@@ -112,7 +184,7 @@ class AIService:
 
 请返回受影响的的需求列表，以 JSON 数组格式。
 """
-        response = await self.chat([
+        response = await self.chat_with_cache([
             {"role": "system", "content": "你是一个专业的测试架构师，擅长影响分析。"},
             {"role": "user", "content": prompt}
         ])
