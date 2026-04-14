@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Select, message, Space, Popconfirm } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, message, Space, Popconfirm, Tag } from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, RocketOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { requirementApi, projectApi } from '../services/api';
+import { requirementApi, projectApi, workflowApi } from '../services/api';
 import type { Requirement, Project } from '../types';
 
 const priorityOptions = [
@@ -13,15 +13,16 @@ const priorityOptions = [
 ];
 
 const statusOptions = [
-  { value: 'pending', label: '待处理' },
-  { value: 'cases_generated', label: '用例已生成' },
-  { value: 'code_generated', label: '代码已生成' },
-  { value: 'tested', label: '已测试' },
+  { value: 'pending', label: '待处理', color: 'default' },
+  { value: 'cases_generated', label: '用例已生成', color: 'processing' },
+  { value: 'code_generated', label: '代码已生成', color: 'success' },
+  { value: 'tested', label: '已测试', color: 'green' },
 ];
 
 export function RequirementsPage() {
   const [data, setData] = useState<Requirement[]>([]);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm();
@@ -77,11 +78,57 @@ export function RequirementsPage() {
     fetchData();
   };
 
+  const handleGenerateTests = async (id: string) => {
+    setGenerating(true);
+    try {
+      const res = await workflowApi.generateTests(id);
+      const { analysis, test_cases, test_code_preview } = res.data;
+      message.success(`生成完成！生成 ${test_cases.length} 个测试用例`);
+      Modal.info({
+        title: 'AI 测试生成结果',
+        width: 600,
+        content: (
+          <div>
+            <h4>测试要点 ({analysis.test_points.length})</h4>
+            <Space style={{ marginBottom: 16 }}>
+              {analysis.test_points.slice(0, 3).map((p, i) => (
+                <Tag key={i}>{p.slice(0, 30)}...</Tag>
+              ))}
+            </Space>
+            <h4>生成用例 ({test_cases.length})</h4>
+            <ul>
+              {test_cases.slice(0, 5).map((c, i) => (
+                <li key={i}>{c.case_id}: {c.title} ({c.priority})</li>
+              ))}
+            </ul>
+            <h4>测试代码预览</h4>
+            <pre style={{ maxHeight: 200, overflow: 'auto', fontSize: 11 }}>
+              {test_code_preview}
+            </pre>
+          </div>
+        ),
+      });
+      fetchData();
+    } catch (err: unknown) {
+      message.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '生成失败');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const columns: ColumnsType<Requirement> = [
     { title: '标题', dataIndex: 'title', key: 'title' },
     { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
     { title: '优先级', dataIndex: 'priority', key: 'priority', render: (v) => priorityOptions.find(o => o.value === v)?.label },
-    { title: '状态', dataIndex: 'status', key: 'status', render: (v) => statusOptions.find(o => o.value === v)?.label },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (v) => {
+        const opt = statusOptions.find(o => o.value === v);
+        return <Tag color={opt?.color}>{opt?.label}</Tag>;
+      },
+    },
     { title: '版本', dataIndex: 'version', key: 'version' },
     { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (v) => new Date(v).toLocaleString() },
     {
@@ -89,6 +136,15 @@ export function RequirementsPage() {
       key: 'action',
       render: (_, record) => (
         <Space>
+          <Button
+            size="small"
+            type="primary"
+            icon={<RocketOutlined />}
+            loading={generating}
+            onClick={() => handleGenerateTests(record.id)}
+          >
+            AI 生成
+          </Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
           <Popconfirm title="确认删除?" onConfirm={() => handleDelete(record.id)}>
             <Button size="small" danger icon={<DeleteOutlined />} />
@@ -122,7 +178,7 @@ export function RequirementsPage() {
             <Input />
           </Form.Item>
           <Form.Item name="description" label="描述">
-            <Input.TextArea />
+            <Input.TextArea rows={4} placeholder="请详细描述需求，包括功能点、业务流程、约束条件等，AI将根据描述生成测试用例" />
           </Form.Item>
           <Form.Item name="priority" label="优先级" initialValue="medium">
             <Select options={priorityOptions} />

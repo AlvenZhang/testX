@@ -63,4 +63,16 @@ export const reportApi = {
   delete: (id: string) => api.delete(`/reports/${id}`),
 };
 
+// Workflows
+export const workflowApi = {
+  generateTests: (requirementId: string) =>
+    api.post<{
+      requirement_id: string;
+      analysis: { test_points: string[]; risk_points: string[]; suggested_test_types: string[] };
+      test_cases: Array<{ case_id: string; title: string; priority: string }>;
+      test_code_id: string;
+      test_code_preview: string;
+    }>(`/workflows/generate-tests/${requirementId}`),
+};
+
 export default api;
