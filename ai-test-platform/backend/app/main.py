@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.v1 import projects, requirements, code_changes, ai, test_cases, test_plans, test_runs, reports, workflows, executions, test_code, devices
+from .api.v1 import projects, requirements, code_changes, ai, test_cases, test_plans, test_runs, reports, workflows, executions, test_code, devices, auth
 from .api.v1.ws import websocket_endpoint
 from .core.config import get_settings
 
@@ -43,6 +43,7 @@ app.include_router(workflows.router, prefix="/api/v1")
 app.include_router(executions.router, prefix="/api/v1")
 app.include_router(test_code.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
 
 
 @app.websocket("/ws/execution/{run_id}")

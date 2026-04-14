@@ -9,11 +9,17 @@ import { TestPlansPage } from './pages/TestPlans';
 import { TestRunsPage } from './pages/TestRuns';
 import { ReportsPage } from './pages/Reports';
 import { DevicesPage } from './pages/Devices';
+import { LoginPage } from './pages/Login';
 
 type PageKey = 'dashboard' | 'projects' | 'requirements' | 'testcases' | 'testcode' | 'testplans' | 'testruns' | 'reports' | 'devices';
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
   const [currentPage, setCurrentPage] = useState<PageKey>('dashboard');
+
+  const handleLogin = (_token: string, _user: { id: string; email: string; name: string }) => {
+    setIsLoggedIn(true);
+  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -29,6 +35,10 @@ function App() {
       default: return <DashboardPage />;
     }
   };
+
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   return (
     <Layout selectedKey={currentPage} onMenuClick={(key) => setCurrentPage(key as PageKey)}>

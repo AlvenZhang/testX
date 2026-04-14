@@ -8,6 +8,23 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Auth
+export const authApi = {
+  login: (email: string, password: string) =>
+    api.post<{ access_token: string; user: { id: string; email: string; name: string } }>('/auth/login', { email, password }),
+  register: (email: string, name: string, password: string) =>
+    api.post<{ access_token: string; user: { id: string; email: string; name: string } }>('/auth/register', { email, name, password }),
+};
+
 // Projects
 export const projectApi = {
   list: () => api.get<Project[]>('/projects/'),
