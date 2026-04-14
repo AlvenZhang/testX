@@ -75,4 +75,23 @@ export const workflowApi = {
     }>(`/workflows/generate-tests/${requirementId}`),
 };
 
+// Test Code
+export const testCodeApi = {
+  list: (projectId: string) => api.get<Array<{ id: string; project_id: string; requirement_id: string; framework: string; code_content: string; status: string; created_at: string }>>(`/test-code/?project_id=${projectId}`),
+  get: (id: string) => api.get(`/test-code/${id}`),
+  listByRequirement: (requirementId: string) => api.get(`/test-code/?requirement_id=${requirementId}`),
+};
+
+// Executions
+export const executionApi = {
+  run: (testCodeId: string) =>
+    api.post<{
+      run_id: string;
+      status: string;
+      exit_code: number;
+      logs: string;
+      duration_ms: number;
+    }>(`/executions/run/${testCodeId}`),
+};
+
 export default api;

@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     ai_api_key: str = ""
     ai_base_url: str = "https://ark.cn-beijing.volces.com/api/coding/v3"
 
+    # 沙箱配置
+    sandbox_image: str = "ai-test-sandbox:latest"
+    sandbox_timeout: int = 3600
+
 
 @lru_cache
 def get_settings() -> Settings:
