@@ -1,6 +1,25 @@
 import axios from 'axios';
 import type { Project, Requirement, TestCase, TestPlan, TestRun, Report, Device, MobileExecutionResult, CodeChange } from '../types';
 
+// 项目成员类型
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: 'viewer' | 'editor' | 'executor' | 'admin';
+  created_at: string;
+  updated_at: string;
+}
+
+// 影响分析类型
+export interface ImpactAnalysis {
+  affected_requirements: string[];
+  new_test_cases_needed: string[];
+  tests_to_modify: string[];
+  impact_level: 'high' | 'medium' | 'low';
+  reason: string;
+}
+
 const API_BASE = 'http://localhost:8000/api/v1';
 
 const api = axios.create({
@@ -172,6 +191,57 @@ export const codeChangeApi = {
   get: (id: string) => api.get<CodeChange>(`/code-changes/${id}`),
   create: (data: Partial<CodeChange>) => api.post<CodeChange>('/code-changes/', data),
   delete: (id: string) => api.delete(`/code-changes/${id}`),
+};
+
+// 项目成员类型
+export interface ProjectMember {
+  id: string;
+  project_id: string;
+  user_id: string;
+  role: 'viewer' | 'editor' | 'executor' | 'admin';
+  created_at: string;
+  updated_at: string;
+}
+
+// 影响分析类型
+export interface ImpactAnalysis {
+  affected_requirements: string[];
+  new_test_cases_needed: string[];
+  tests_to_modify: string[];
+  impact_level: 'high' | 'medium' | 'low';
+  reason: string;
+}
+
+// Project Members
+export const projectMemberApi = {
+  list: (projectId: string) => api.get<ProjectMember[]>(`/project-members/project/${projectId}`),
+  add: (data: { project_id: string; user_id: string; role: string }) =>
+    api.post<ProjectMember>('/project-members/', data),
+  update: (memberId: string, role: string) =>
+    api.put<ProjectMember>(`/project-members/${memberId}`, { role }),
+  delete: (memberId: string) => api.delete(`/project-members/${memberId}`),
+};
+
+// Impact Analysis
+export const impactAnalysisApi = {
+  analyzeRequirement: (requirementId: string) =>
+    api.post<{ requirement_id: string; analysis: ImpactAnalysis }>(
+      `/impact-analysis/requirement/${requirementId}`
+    ),
+  suggestRegression: (projectId: string, changedFiles: string[]) =>
+    api.post<{ project_id: string; changed_files: string[]; suggested_test_codes: string[] }>(
+      '/impact-analysis/regression-suggest',
+      changedFiles,
+      { params: { project_id: projectId } }
+    ),
+};
+
+// Exports
+export const exportApi = {
+  reportCsv: (reportId: string) =>
+    api.get(`/exports/report/${reportId}/csv`, { responseType: 'blob' }),
+  testCasesCsv: (projectId: string) =>
+    api.get(`/exports/test-cases/${projectId}/csv`, { responseType: 'blob' }),
 };
 
 export default api;
