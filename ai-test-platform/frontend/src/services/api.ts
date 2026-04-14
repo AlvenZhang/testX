@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Project, Requirement, TestCase, TestPlan, TestRun, Report, Device, MobileExecutionResult } from '../types';
+import type { Project, Requirement, TestCase, TestPlan, TestRun, Report, Device, MobileExecutionResult, CodeChange } from '../types';
 
 const API_BASE = 'http://localhost:8000/api/v1';
 
@@ -152,6 +152,26 @@ export const aiApi = {
 
   fixTestCode: (data: { failed_code: string; error_message: string; test_type: string }) =>
     api.post<{ fixed_code: string; explanation: string }>('/ai/fix-test-code', data),
+};
+
+// Devices
+export const deviceApi = {
+  list: (platform?: 'android' | 'ios') =>
+    api.get<Device[]>('/devices/', { params: platform ? { platform } : {} }),
+  discover: (platform: 'android' | 'ios') =>
+    api.post<{ discovered_count: number; saved_count: number; devices: Device[] }>('/devices/discover', null, { params: { platform } }),
+  getScreenshot: (deviceId: string) =>
+    api.get<{ device_id: string; screenshot: string }>(`/devices/${deviceId}/screenshot`),
+  delete: (deviceId: string) => api.delete(`/devices/${deviceId}`),
+};
+
+// Code Changes
+export const codeChangeApi = {
+  list: (requirementId: string, skip = 0, limit = 100) =>
+    api.get<CodeChange[]>('/code-changes/', { params: { requirement_id: requirementId, skip, limit } }),
+  get: (id: string) => api.get<CodeChange>(`/code-changes/${id}`),
+  create: (data: Partial<CodeChange>) => api.post<CodeChange>('/code-changes/', data),
+  delete: (id: string) => api.delete(`/code-changes/${id}`),
 };
 
 export default api;

@@ -6,9 +6,14 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 from typing import Optional, Callable
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..services.test_executor import get_test_executor
 from ..services.mobile_executor import get_mobile_executor
 from ..core.config import get_settings
+from ..core.database import async_session
+from ..models.test_code import TestCode
 
 
 @dataclass
@@ -109,8 +114,16 @@ class TestTaskWorker:
 
     async def _get_test_code(self, test_code_id: str) -> str:
         """获取测试代码"""
-        # TODO: 从数据库获取
-        return ""
+        # 从数据库获取测试代码
+        try:
+            async with async_session() as session:
+                result = await session.execute(select(TestCode).where(TestCode.id == test_code_id))
+                test_code = result.scalar_one_or_none()
+                if test_code:
+                    return test_code.code_content or ""
+                return ""
+        except Exception:
+            return ""
 
     def get_task(self, task_id: str) -> Optional[TestTask]:
         """获取任务状态"""

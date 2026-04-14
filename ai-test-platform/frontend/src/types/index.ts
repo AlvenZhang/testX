@@ -93,3 +93,28 @@ export interface MobileExecutionResult {
   platform: 'android' | 'ios';
   created_at?: string;
 }
+
+export interface CodeChange {
+  id: string;
+  requirement_id: string;
+  change_type: string;
+  git_url?: string;
+  commit_hash?: string;
+  diff_content?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Device {
+  id: string;
+  name: string;
+  platform: 'android' | 'ios';
+  device_type: string;
+  serial: string;
+  status: 'online' | 'offline' | 'busy';
+  os_version?: string;
+  manufacturer?: string;
+  model?: string;
+  created_at?: string;
+  updated_at?: string;
+}

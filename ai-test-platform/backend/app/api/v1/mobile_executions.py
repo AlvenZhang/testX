@@ -4,48 +4,30 @@ from typing import Optional
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.database import get_db
+from ...models.mobile_execution import MobileExecution
+from ...schemas.mobile_execution import (
+    MobileExecutionRequest,
+    MobileExecutionResponse as MobileExecutionResponseSchema,
+    DeviceListResponse,
+    MobileExecutionStatusResponse,
+    MobileExecutionLogsResponse,
+)
 from ...services.mobile_executor import MobileExecutor, DeviceInfo, get_mobile_executor
 
 router = APIRouter(prefix="/mobile-executions", tags=["mobile-executions"])
 
 
-# ==================== Pydantic Schemas ====================
-
-class MobileExecutionRequest(BaseModel):
-    """移动端执行请求"""
-    code_content: str = Field(..., description="Appium 测试代码 (Python)")
-    device_id: str = Field(..., description="设备ID")
-    platform: str = Field(..., description="平台类型: android/ios")
-    test_type: str = Field(default="functional", description="测试类型: functional/performance/ui")
-
-
-class MobileExecutionResponse(BaseModel):
-    """移动端执行响应"""
-    run_id: str
-    status: str
-    exit_code: int
-    logs: str
-    duration_ms: int
-    device_udid: str
-    platform: str
-    created_at: datetime
-
-
-class DeviceListResponse(BaseModel):
-    """设备列表响应"""
-    devices: list[dict]
-    total: int
-
-
 # ==================== API Endpoints ====================
 
-@router.post("/run", response_model=MobileExecutionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/run", response_model=MobileExecutionResponseSchema, status_code=status.HTTP_201_CREATED)
 async def run_mobile_test(
     request: MobileExecutionRequest,
-    executor: MobileExecutor = Depends(get_mobile_executor)
+    executor: MobileExecutor = Depends(get_mobile_executor),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     执行移动端测试
@@ -53,6 +35,22 @@ async def run_mobile_test(
     支持 Android (UiAutomator2) 和 iOS (XCUITest) 平台
     """
     run_id = str(uuid.uuid4())
+    execution_id = str(uuid.uuid4())
+    started_at = datetime.now()
+
+    # 创建执行记录
+    db_execution = MobileExecution(
+        id=execution_id,
+        run_id=run_id,
+        device_id=request.device_id,
+        platform=request.platform,
+        test_type=request.test_type,
+        status="running",
+        code_content=request.code_content,
+        started_at=started_at,
+    )
+    db.add(db_execution)
+    await db.commit()
 
     # 构建设备信息
     device = DeviceInfo(
@@ -70,15 +68,38 @@ async def run_mobile_test(
         platform=request.platform
     )
 
-    return MobileExecutionResponse(
+    completed_at = datetime.now()
+    duration_ms = int((completed_at - started_at).total_seconds() * 1000)
+
+    # 更新执行记录
+    db_execution.status = result.get("status", "error")
+    db_execution.exit_code = result.get("exit_code", 1)
+    db_execution.logs = result.get("logs", "")
+    db_execution.duration_ms = duration_ms
+    db_execution.result_data = result
+    db_execution.completed_at = completed_at
+    if result.get("status") == "error":
+        db_execution.error_message = result.get("error", "")
+
+    await db.commit()
+    await db.refresh(db_execution)
+
+    return MobileExecutionResponseSchema(
+        id=execution_id,
         run_id=run_id,
+        device_id=request.device_id,
+        platform=request.platform,
+        test_type=request.test_type,
         status=result.get("status", "error"),
         exit_code=result.get("exit_code", 1),
         logs=result.get("logs", ""),
-        duration_ms=result.get("duration_ms", 0),
-        device_udid=request.device_id,
-        platform=request.platform,
-        created_at=datetime.now()
+        duration_ms=duration_ms,
+        result_data=result,
+        error_message=result.get("error") if result.get("status") == "error" else None,
+        created_at=db_execution.created_at,
+        updated_at=db_execution.updated_at,
+        started_at=started_at,
+        completed_at=completed_at,
     )
 
 
@@ -110,28 +131,54 @@ async def list_mobile_devices(
     )
 
 
-@router.get("/status/{run_id}")
-async def get_execution_status(run_id: str):
+@router.get("/status/{run_id}", response_model=MobileExecutionStatusResponse)
+async def get_execution_status(
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+):
     """
     获取移动端测试执行状态
 
     注意: 移动端测试目前是同步执行，此接口主要用于查询历史记录
     """
-    # TODO: 实现状态存储和查询
-    return {
-        "run_id": run_id,
-        "status": "completed",
-        "message": "Mobile execution status tracking to be implemented"
-    }
+    result = await db.execute(select(MobileExecution).where(MobileExecution.run_id == run_id))
+    execution = result.scalar_one_or_none()
+
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    duration_ms = None
+    if execution.started_at and execution.completed_at:
+        duration_ms = int((execution.completed_at - execution.started_at).total_seconds() * 1000)
+    elif execution.started_at:
+        duration_ms = int((datetime.now() - execution.started_at).total_seconds() * 1000)
+
+    return MobileExecutionStatusResponse(
+        run_id=execution.run_id,
+        status=execution.status,
+        message=None,
+        started_at=execution.started_at,
+        completed_at=execution.completed_at,
+        duration_ms=duration_ms,
+    )
 
 
-@router.get("/logs/{run_id}")
-async def get_execution_logs(run_id: str):
+@router.get("/logs/{run_id}", response_model=MobileExecutionLogsResponse)
+async def get_execution_logs(
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+):
     """
     获取移动端测试执行日志
     """
-    # TODO: 实现日志存储和查询
-    return {
-        "run_id": run_id,
-        "logs": "Log retrieval to be implemented"
-    }
+    result = await db.execute(select(MobileExecution).where(MobileExecution.run_id == run_id))
+    execution = result.scalar_one_or_none()
+
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    return MobileExecutionLogsResponse(
+        run_id=execution.run_id,
+        logs=execution.logs or "",
+        status=execution.status,
+    )

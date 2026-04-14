@@ -5,6 +5,61 @@ CREATE DATABASE IF NOT EXISTS aitest DEFAULT CHARACTER SET utf8mb4 COLLATE utf8m
 
 USE aitest;
 
+-- 用户表
+CREATE TABLE IF NOT EXISTS users (
+    id VARCHAR(36) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE COMMENT '用户邮箱',
+    name VARCHAR(100) NOT NULL COMMENT '用户姓名',
+    password_hash VARCHAR(255) NOT NULL COMMENT '密码哈希',
+    role ENUM('admin', 'user') DEFAULT 'user' COMMENT '用户角色',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+
+-- 设备表
+CREATE TABLE IF NOT EXISTS devices (
+    id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL COMMENT '设备名称',
+    platform ENUM('android', 'ios') NOT NULL COMMENT '平台类型',
+    device_type ENUM('real_device', 'emulator', 'simulator') NOT NULL COMMENT '设备类型',
+    serial VARCHAR(100) COMMENT 'ADB serial / iOS uuid',
+    appium_port INT COMMENT 'Appium 端口',
+    wda_port INT COMMENT 'iOS WDA 端口',
+    status ENUM('online', 'offline', 'busy', 'maintaining') DEFAULT 'offline' COMMENT '设备状态',
+    os_version VARCHAR(20) COMMENT '操作系统版本',
+    manufacturer VARCHAR(50) COMMENT '制造商',
+    model VARCHAR(50) COMMENT '设备型号',
+    capabilities JSON COMMENT 'Appium capabilities',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_platform (platform),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备表';
+
+-- 移动端执行记录表
+CREATE TABLE IF NOT EXISTS mobile_executions (
+    id VARCHAR(36) PRIMARY KEY,
+    run_id VARCHAR(36) NOT NULL UNIQUE COMMENT '执行ID',
+    device_id VARCHAR(255) NOT NULL COMMENT '设备ID',
+    platform VARCHAR(20) NOT NULL COMMENT '平台类型',
+    test_type VARCHAR(50) DEFAULT 'functional' COMMENT '测试类型',
+    status VARCHAR(20) DEFAULT 'pending' COMMENT '执行状态',
+    exit_code INT DEFAULT 0 COMMENT '退出码',
+    logs TEXT COMMENT '执行日志',
+    code_content TEXT COMMENT '测试代码',
+    duration_ms INT DEFAULT 0 COMMENT '执行时长(毫秒)',
+    result_data JSON COMMENT '执行结果数据',
+    error_message TEXT COMMENT '错误信息',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    started_at DATETIME COMMENT '开始时间',
+    completed_at DATETIME COMMENT '完成时间',
+    INDEX idx_run_id (run_id),
+    INDEX idx_device_id (device_id),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='移动端执行记录表';
+
 -- 项目表
 CREATE TABLE IF NOT EXISTS projects (
     id VARCHAR(36) PRIMARY KEY,
