@@ -71,3 +71,25 @@ export interface Report {
   screenshots?: string[];
   created_at: string;
 }
+
+export interface Device {
+  id: string;
+  name: string;
+  platform: 'android' | 'ios';
+  version: string;
+  status: 'online' | 'offline' | 'busy';
+  capabilities?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MobileExecutionResult {
+  run_id: string;
+  status: 'success' | 'failed' | 'error';
+  exit_code: number;
+  logs: string;
+  duration_ms: number;
+  device_udid: string;
+  platform: 'android' | 'ios';
+  created_at?: string;
+}
