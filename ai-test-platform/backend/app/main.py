@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .api.v1 import projects, requirements, code_changes, ai, test_cases, test_plans
+from .api.v1 import projects, requirements, code_changes, ai, test_cases, test_plans, test_runs
 from .core.config import get_settings
 
 
@@ -27,6 +27,7 @@ app.include_router(code_changes.router, prefix="/api/v1")
 app.include_router(ai.router, prefix="/api/v1")
 app.include_router(test_cases.router, prefix="/api/v1")
 app.include_router(test_plans.router, prefix="/api/v1")
+app.include_router(test_runs.router, prefix="/api/v1")
 
 
 @app.get("/health")
