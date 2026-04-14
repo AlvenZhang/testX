@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Project, Requirement, TestCase, TestPlan, TestRun, Report } from '../types';
+import type { Project, Requirement, TestCase, TestPlan, TestRun, Report, Device, MobileExecutionResult } from '../types';
 
 const API_BASE = 'http://localhost:8000/api/v1';
 
@@ -109,6 +109,28 @@ export const executionApi = {
       logs: string;
       duration_ms: number;
     }>(`/executions/run/${testCodeId}`),
+};
+
+// Mobile Executions
+export const mobileExecutionApi = {
+  run: (data: {
+    code_content: string;
+    device_id: string;
+    platform: 'android' | 'ios';
+    test_type?: string;
+  }) =>
+    api.post<MobileExecutionResult>('/mobile-executions/run', data),
+
+  listDevices: (platform?: 'android' | 'ios') =>
+    api.get<{ devices: Device[]; total: number }>('/mobile-executions/devices', {
+      params: platform ? { platform } : {},
+    }),
+
+  getStatus: (runId: string) =>
+    api.get<{ run_id: string; status: string; message?: string }>(`/mobile-executions/status/${runId}`),
+
+  getLogs: (runId: string) =>
+    api.get<{ run_id: string; logs: string }>(`/mobile-executions/logs/${runId}`),
 };
 
 export default api;
