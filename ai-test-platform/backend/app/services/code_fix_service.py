@@ -9,7 +9,7 @@ from .ai_service import AIService
 class CodeFixService:
     """AI 代码修复服务"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.ai_service = AIService()
 
     async def fix_test_code(
