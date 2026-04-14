@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .api.v1 import projects
+from .api.v1 import projects, requirements
 from .core.config import get_settings
 
 
@@ -22,6 +22,7 @@ app = FastAPI(
 )
 
 app.include_router(projects.router, prefix="/api/v1")
+app.include_router(requirements.router, prefix="/api/v1")
 
 
 @app.get("/health")

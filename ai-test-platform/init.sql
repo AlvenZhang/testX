@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS requirements (
     priority ENUM('low', 'medium', 'high', 'critical') DEFAULT 'medium' COMMENT '优先级',
     type ENUM('function', 'api', 'ui') DEFAULT 'function' COMMENT '需求类型',
     status ENUM('pending', 'cases_generated', 'code_generated', 'tested') DEFAULT 'pending' COMMENT '状态',
+    version INT DEFAULT 1 COMMENT '版本号',
+    metadata JSON COMMENT '额外元数据',
     attachment_url VARCHAR(500) COMMENT '需求文档URL',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -54,7 +56,8 @@ CREATE TABLE IF NOT EXISTS requirement_versions (
     version INT NOT NULL COMMENT '版本号',
     title VARCHAR(500) COMMENT '标题',
     description TEXT COMMENT '描述',
-    diff_content TEXT COMMENT '变更内容',
+    diff JSON COMMENT '变更内容',
+    created_by VARCHAR(36) COMMENT '创建人',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (requirement_id) REFERENCES requirements(id) ON DELETE CASCADE,
     INDEX idx_requirement_id (requirement_id)
