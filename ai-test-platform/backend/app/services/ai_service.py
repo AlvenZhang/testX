@@ -1,6 +1,7 @@
 """AI 服务 - 对接豆包/火山引擎 API"""
 import asyncio
 import hashlib
+import json
 import httpx
 import redis.asyncio as redis
 from typing import Any, Optional
@@ -80,23 +81,28 @@ class AIService:
         temperature: float = 0.7,
         max_attempts: int = 3,
     ) -> str:
-        """带指数退避的重试（处理 429 限流）"""
+        """带指数退避的重试（处理 429/529 限流）"""
         for attempt in range(max_attempts):
             try:
                 return await self.chat(messages, temperature)
             except httpx.HTTPStatusError as e:
-                if e.response.status_code == 429 and attempt < max_attempts - 1:
-                    # 429 Too Many Requests - 指数退避等待
-                    delay = 2 ** attempt * 5
-                    await asyncio.sleep(delay)
-                    continue
-                elif e.response.status_code == 529 and attempt < max_attempts - 1:
-                    # 529 Overloaded - 服务负载高，等待后重试
+                status_code = e.response.status_code
+                error_msg = str(e)
+                # 429 Too Many Requests, 529 Overloaded, 500 Server Error
+                if status_code in (429, 529, 500) or "529" in error_msg or "500" in error_msg:
+                    if attempt < max_attempts - 1:
+                        delay = 2 ** attempt * 10
+                        await asyncio.sleep(delay)
+                        continue
+                    raise
+                raise
+            except Exception as e:
+                error_msg = str(e)
+                # 处理未知状态码 529
+                if "529" in error_msg and attempt < max_attempts - 1:
                     delay = 2 ** attempt * 10
                     await asyncio.sleep(delay)
                     continue
-                raise
-            except Exception as e:
                 if attempt == max_attempts - 1:
                     raise
                 delay = 2 ** attempt
