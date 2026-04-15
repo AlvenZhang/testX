@@ -13,6 +13,9 @@ export function TestCasesPage() {
   const [form] = Form.useForm();
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedRequirementId, setSelectedRequirementId] = useState<string | null>(null);
+  const [allTestCases, setAllTestCases] = useState<TestCase[]>([]);
 
   const fetchProjects = async () => {
     const res = await projectApi.list();
@@ -34,7 +37,10 @@ export function TestCasesPage() {
     setLoading(true);
     try {
       const cases = await Promise.all(requirements.map(r => testCaseApi.list(r.id)));
-      setData(cases.flatMap(c => c.data));
+      const allCases = cases.flatMap(c => c.data);
+      setAllTestCases(allCases);
+      // 根据筛选条件过滤
+      filterTestCases(allCases, selectedProjectId, selectedRequirementId);
     } catch {
       message.error('获取用例列表失败');
     } finally {
@@ -42,9 +48,39 @@ export function TestCasesPage() {
     }
   };
 
+  const filterTestCases = (cases: TestCase[], projectId: string | null, reqId: string | null) => {
+    let filtered = cases;
+    if (projectId) {
+      const reqIds = requirements.filter(r => r.project_id === projectId).map(r => r.id);
+      filtered = filtered.filter(c => reqIds.includes(c.requirement_id));
+    }
+    if (reqId) {
+      filtered = filtered.filter(c => c.requirement_id === reqId);
+    }
+    setData(filtered);
+  };
+
   useEffect(() => { fetchProjects(); }, []);
   useEffect(() => { if (projects.length > 0) fetchRequirements(); }, [projects]);
   useEffect(() => { if (requirements.length > 0) fetchData(); }, [requirements]);
+
+  // 处理项目筛选变化
+  const handleProjectChange = (projectId: string | null) => {
+    setSelectedProjectId(projectId);
+    setSelectedRequirementId(null); // 重置需求筛选
+    filterTestCases(allTestCases, projectId, null);
+  };
+
+  // 处理需求筛选变化
+  const handleRequirementChange = (reqId: string | null) => {
+    setSelectedRequirementId(reqId);
+    filterTestCases(allTestCases, selectedProjectId, reqId);
+  };
+
+  // 获取当前项目下的需求选项
+  const availableRequirements = selectedProjectId
+    ? requirements.filter(r => r.project_id === selectedProjectId)
+    : requirements;
 
   const handleSubmit = async () => {
     try {
@@ -97,10 +133,35 @@ export function TestCasesPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingId(null); form.resetFields(); setModalVisible(true); }}>
           新建用例
         </Button>
+        <span>项目:</span>
+        <Select
+          style={{ width: 150 }}
+          placeholder="全部项目"
+          allowClear
+          value={selectedProjectId}
+          onChange={handleProjectChange}
+        >
+          {projects.map(p => (
+            <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
+          ))}
+        </Select>
+        <span>需求:</span>
+        <Select
+          style={{ width: 200 }}
+          placeholder="全部需求"
+          allowClear
+          value={selectedRequirementId}
+          onChange={handleRequirementChange}
+        >
+          {availableRequirements.map(r => (
+            <Select.Option key={r.id} value={r.id}>{r.title}</Select.Option>
+          ))}
+        </Select>
+        <span style={{ color: '#999' }}>共 {data.length} 条</span>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} />
       <Modal

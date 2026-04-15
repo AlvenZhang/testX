@@ -26,15 +26,21 @@ export function ProjectDetailPage() {
     if (!id) return;
     setLoading(true);
     try {
-      const [projectRes, reqRes, caseRes, codeRes] = await Promise.all([
+      const [projectRes, reqRes, codeRes] = await Promise.all([
         projectApi.get(id),
-        requirementApi.list({ project_id: id }),
-        testCaseApi.list({ project_id: id }),
-        testCodeApi.list({ project_id: id }),
+        requirementApi.list(id),
+        testCodeApi.list(id),
       ]);
       setProject(projectRes.data);
       setRequirements(reqRes.data || []);
-      setTestCases(caseRes.data || []);
+
+      // 用例获取：遍历项目需求获取用例
+      const allCases: TestCase[] = [];
+      for (const req of reqRes.data || []) {
+        const cases = await testCaseApi.list(req.id);
+        allCases.push(...cases.data);
+      }
+      setTestCases(allCases);
       setTestCodes(codeRes.data || []);
     } catch {
       message.error('获取项目详情失败');

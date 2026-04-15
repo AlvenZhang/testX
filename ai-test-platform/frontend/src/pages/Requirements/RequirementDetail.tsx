@@ -28,9 +28,9 @@ export function RequirementDetailPage() {
     try {
       const [reqRes, casesRes, codesRes, runsRes] = await Promise.all([
         requirementApi.get(id),
-        testCaseApi.list({ requirement_id: id }),
-        testCodeApi.list({ requirement_id: id }),
-        testRunApi.list({ requirement_id: id }),
+        testCaseApi.list(id),
+        testCodeApi.list(id),
+        testRunApi.list(undefined, id),
       ]);
       setRequirement(reqRes.data);
       setTestCases(casesRes.data || []);

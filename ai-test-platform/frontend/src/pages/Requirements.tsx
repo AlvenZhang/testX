@@ -35,6 +35,8 @@ export function RequirementsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [allRequirements, setAllRequirements] = useState<Requirement[]>([]);
 
   // 流式生成弹窗状态
   const [streamModalVisible, setStreamModalVisible] = useState(false);
@@ -55,7 +57,14 @@ export function RequirementsPage() {
     setLoading(true);
     try {
       const reqs = await Promise.all(projects.map(p => requirementApi.list(p.id)));
-      setData(reqs.flatMap(r => r.data));
+      const allReqs = reqs.flatMap(r => r.data);
+      setAllRequirements(allReqs);
+      // 根据选中的项目过滤
+      if (selectedProjectId) {
+        setData(allReqs.filter(req => req.project_id === selectedProjectId));
+      } else {
+        setData(allReqs);
+      }
     } catch {
       message.error('获取需求列表失败');
     } finally {
@@ -65,6 +74,15 @@ export function RequirementsPage() {
 
   useEffect(() => { fetchProjects(); }, []);
   useEffect(() => { if (projects.length > 0) fetchData(); }, [projects]);
+  useEffect(() => {
+    if (allRequirements.length > 0) {
+      if (selectedProjectId) {
+        setData(allRequirements.filter(req => req.project_id === selectedProjectId));
+      } else {
+        setData(allRequirements);
+      }
+    }
+  }, [selectedProjectId]);
 
   const handleSubmit = async () => {
     try {
@@ -232,10 +250,23 @@ export function RequirementsPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingId(null); form.resetFields(); setModalVisible(true); }}>
           新建需求
         </Button>
+        <span>筛选项目:</span>
+        <Select
+          style={{ width: 200 }}
+          placeholder="全部项目"
+          allowClear
+          value={selectedProjectId}
+          onChange={(value) => setSelectedProjectId(value || null)}
+        >
+          {projects.map(p => (
+            <Select.Option key={p.id} value={p.id}>{p.name}</Select.Option>
+          ))}
+        </Select>
+        <span style={{ color: '#999' }}>共 {data.length} 条</span>
       </div>
       <Table columns={columns} dataSource={data} rowKey="id" loading={loading} />
       <Modal

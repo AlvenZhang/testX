@@ -83,7 +83,12 @@ export const testPlanApi = {
 
 // Test Runs
 export const testRunApi = {
-  list: (projectId: string) => api.get<TestRun[]>(`/test-runs/?project_id=${projectId}`),
+  list: (projectId?: string, requirementId?: string) => {
+    let url = '/test-runs/?';
+    if (projectId) url += `project_id=${projectId}&`;
+    if (requirementId) url += `requirement_id=${requirementId}&`;
+    return api.get<TestRun[]>(url);
+  },
   get: (id: string) => api.get<TestRun>(`/test-runs/${id}`),
   create: (data: Partial<TestRun>) => api.post<TestRun>('/test-runs/', data),
   update: (id: string, data: Partial<TestRun>) => api.put<TestRun>(`/test-runs/${id}`, data),

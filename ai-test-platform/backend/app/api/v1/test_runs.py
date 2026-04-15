@@ -31,18 +31,27 @@ async def create_test_run(
 
 @router.get("/", response_model=List[TestRunResponse])
 async def list_test_runs(
-    project_id: str,
+    project_id: str = None,
+    requirement_id: str = None,
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db)
 ):
-    """获取项目下的测试运行记录列表"""
-    result = await db.execute(
-        select(TestRun)
-        .where(TestRun.project_id == project_id)
-        .offset(skip)
-        .limit(limit)
-    )
+    """获取测试运行记录列表"""
+    query = select(TestRun)
+
+    if project_id:
+        query = query.where(TestRun.project_id == project_id)
+
+    if requirement_id:
+        # 通过 test_code 表关联 requirement_id
+        from ...models.test_code import TestCode
+        query = query.join(TestCode, TestRun.test_code_id == TestCode.id).where(
+            TestCode.requirement_id == requirement_id
+        )
+
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
