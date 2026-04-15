@@ -22,7 +22,9 @@ class DeviceService:
                 if line.strip():
                     parts = line.split("\t")
                     if len(parts) >= 2:
-                        serial, status = parts[0].strip(), parts[1].strip()
+                        serial, adb_status = parts[0].strip(), parts[1].strip()
+                        # Map ADB status to device status: device/unauthorized/offline -> online/offline
+                        status = "online" if adb_status == "device" else "offline"
                         # Get device info
                         info = await self._get_android_device_info(serial)
                         devices.append({
