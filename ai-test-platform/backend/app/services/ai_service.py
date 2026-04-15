@@ -3,10 +3,13 @@ import asyncio
 import hashlib
 import json
 import httpx
+import logging
 import redis.asyncio as redis
 from typing import Any, AsyncIterator, Optional
 
 from ..core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
@@ -124,12 +127,14 @@ class AIService:
             "messages": messages,
             "temperature": temperature
         }
-
+        logger.info(f"AI request to {self.model} at {url}")
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
+            logger.debug(f"AI response length: {len(content)} chars")
+            return content
 
     async def chat_stream(
         self,
@@ -147,6 +152,7 @@ class AIService:
             "temperature": temperature,
             "stream": True
         }
+        logger.info(f"AI streaming request to {self.model}")
 
         async with httpx.AsyncClient(timeout=180.0) as client:
             async with client.stream("POST", url, headers=headers, json=payload) as response:
@@ -166,6 +172,7 @@ class AIService:
 
     async def analyze_requirement(self, requirement_title: str, requirement_description: str) -> dict[str, Any]:
         """分析需求，生成测试要点"""
+        logger.info(f"Analyzing requirement: {requirement_title}")
         prompt = f"""分析以下需求，生成测试要点：
 
 需求标题：{requirement_title}
@@ -181,8 +188,11 @@ class AIService:
             {"role": "user", "content": prompt}
         ])
         try:
-            return json.loads(response)
+            result = json.loads(response)
+            logger.info(f"Requirement analysis complete: {len(result.get('test_points', []))} test points, {len(result.get('risk_points', []))} risk points")
+            return result
         except json.JSONDecodeError:
+            logger.warning("Failed to parse AI response as JSON")
             return {"test_points": [], "risk_points": [], "suggested_test_types": ["web"], "raw_response": response}
 
     async def generate_test_cases(
@@ -192,6 +202,7 @@ class AIService:
         test_types: list[str],
     ) -> list[dict]:
         """生成测试用例"""
+        logger.info(f"Generating test cases for: {requirement_title}")
         prompt = f"""为以下需求生成测试用例：
 
 需求标题：{requirement_title}
@@ -212,12 +223,16 @@ class AIService:
             {"role": "user", "content": prompt}
         ])
         try:
-            return json.loads(response)
+            cases = json.loads(response)
+            logger.info(f"Generated {len(cases)} test cases")
+            return cases
         except json.JSONDecodeError:
+            logger.warning("Failed to parse test cases as JSON")
             return []
 
     async def generate_test_code(self, test_cases: list[dict], framework: str = "pytest") -> str:
         """生成测试代码"""
+        logger.info(f"Generating test code for {len(test_cases)} test cases using {framework}")
         cases_json = json.dumps(test_cases, ensure_ascii=False, indent=2)
         prompt = f"""根据以下测试用例生成 pytest 测试代码：
 
@@ -230,6 +245,7 @@ class AIService:
             {"role": "system", "content": "你是一个专业的测试开发工程师，擅长编写高质量的自动化测试代码。"},
             {"role": "user", "content": prompt}
         ])
+        logger.info(f"Generated test code: {len(response)} chars")
         return response
 
     async def analyze_code_impact(self, code_changes: list[dict], requirements: list[dict]) -> list[dict]:

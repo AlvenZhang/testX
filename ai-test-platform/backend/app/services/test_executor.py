@@ -1,6 +1,7 @@
 """测试执行引擎 - Docker 沙箱"""
 import asyncio
 import json
+import logging
 import os
 import tarfile
 import uuid
@@ -11,6 +12,8 @@ import docker
 import httpx
 
 from ..core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class TestExecutor:
@@ -71,6 +74,7 @@ class TestExecutor:
         Returns:
             执行结果字典
         """
+        logger.info(f"[{run_id}] Starting test execution: type={test_type}, framework={framework}")
         container = None
         try:
             # 确保镜像存在
@@ -79,6 +83,7 @@ class TestExecutor:
             # 1. 创建测试目录和文件
             test_dir = f"/tmp/test-run-{run_id}"
             os.makedirs(test_dir, exist_ok=True)
+            logger.info(f"[{run_id}] Created test directory: {test_dir}")
 
             if test_type == "api":
                 # API 测试：写入 JSON 测试套件
@@ -106,12 +111,15 @@ class TestExecutor:
 
             # 2. 创建沙箱容器
             container = await self._create_sandbox(run_id)
+            logger.info(f"[{run_id}] Sandbox container created: {container.id}")
 
             # 3. 复制测试文件到容器
             await self._copy_to_container(container, test_dir)
+            logger.info(f"[{run_id}] Test files copied to container")
 
             # 4. 执行测试
             result = await self._run_executor(container, executor_script, test_file, output_file, framework)
+            logger.info(f"[{run_id}] Test execution completed: exit_code={result['exit_code']}, duration={result.get('duration_ms', 0)}ms")
 
             # 5. 获取报告
             report = await self._get_report(container, output_file)
@@ -119,14 +127,17 @@ class TestExecutor:
             # 6. 获取日志
             logs = await self._get_logs(container)
 
+            status = "success" if result["exit_code"] == 0 else "failed"
+            logger.info(f"[{run_id}] Test {status}")
             return {
-                "status": "success" if result["exit_code"] == 0 else "failed",
+                "status": status,
                 "exit_code": result["exit_code"],
                 "logs": logs,
                 "report": report,
                 "duration_ms": result.get("duration_ms", 0),
             }
         except Exception as e:
+            logger.error(f"[{run_id}] Test execution failed: {e}", exc_info=True)
             return {
                 "status": "failed",
                 "error": str(e),
@@ -136,6 +147,7 @@ class TestExecutor:
         finally:
             if container:
                 await self._destroy_sandbox(container)
+                logger.info(f"[{run_id}] Sandbox container destroyed")
 
     async def execute_pytest(
         self,
@@ -154,6 +166,7 @@ class TestExecutor:
         Returns:
             执行结果字典
         """
+        logger.info(f"[{run_id}] Starting pytest execution")
         container = None
         try:
             self._ensure_image()
@@ -166,6 +179,7 @@ class TestExecutor:
             test_file = f"{test_dir}/test_sample.py"
             with open(test_file, "w", encoding="utf-8") as f:
                 f.write(code_content)
+            logger.info(f"[{run_id}] Wrote test file: {len(code_content)} bytes")
 
             # 3. 写入 requirements.txt（如果提供）
             if requirements:
@@ -175,6 +189,7 @@ class TestExecutor:
 
             # 4. 创建沙箱容器
             container = await self._create_sandbox(run_id)
+            logger.info(f"[{run_id}] Container created: {container.id}")
 
             # 5. 复制测试文件到容器
             await self._copy_to_container(container, test_dir)
@@ -182,20 +197,25 @@ class TestExecutor:
             # 6. 安装依赖（如有）
             if requirements:
                 await self._install_requirements(container, "/app/requirements.txt")
+                logger.info(f"[{run_id}] Installed dependencies")
 
             # 7. 执行 pytest
             result = await self._run_pytest(container, "/app/test_sample.py")
+            logger.info(f"[{run_id}] Pytest completed: exit_code={result['exit_code']}")
 
             # 8. 获取日志
             logs = await self._get_logs(container)
 
+            status = "success" if result["exit_code"] == 0 else "failed"
+            logger.info(f"[{run_id}] Pytest {status}")
             return {
-                "status": "success" if result["exit_code"] == 0 else "failed",
+                "status": status,
                 "exit_code": result["exit_code"],
                 "logs": logs,
                 "duration_ms": result.get("duration_ms", 0),
             }
         except Exception as e:
+            logger.error(f"[{run_id}] Pytest execution failed: {e}", exc_info=True)
             return {
                 "status": "failed",
                 "error": str(e),
@@ -204,6 +224,7 @@ class TestExecutor:
         finally:
             if container:
                 await self._destroy_sandbox(container)
+                logger.info(f"[{run_id}] Container destroyed")
 
     async def _create_sandbox(self, run_id: str):
         """创建 Docker 沙箱容器"""

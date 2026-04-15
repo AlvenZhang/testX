@@ -6,6 +6,7 @@ from sqlalchemy import select
 import uuid
 import json
 import asyncio
+import logging
 
 from ...core.database import get_db
 from ...services.ai_service import get_ai_service
@@ -16,6 +17,7 @@ from ...models.test_code import TestCode
 from ...schemas.ai import AnalyzeRequirementRequest, GenerateTestCasesRequest
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/generate-tests/{requirement_id}")
@@ -168,6 +170,7 @@ async def generate_tests_stream(
     流式测试生成工作流 - 通过 SSE 流式返回生成进度
     """
     async def event_generator():
+        logger.info(f"Starting streaming test generation for requirement: {requirement_id}")
         try:
             # 获取需求
             result = await db.execute(
@@ -175,20 +178,25 @@ async def generate_tests_stream(
             )
             requirement = result.scalar_one_or_none()
             if not requirement:
+                logger.error(f"Requirement not found: {requirement_id}")
                 yield f"data: {json.dumps({'type': 'error', 'content': 'Requirement not found'})}\n\n"
                 return
 
             ai_service = get_ai_service()
+            logger.info(f"Processing requirement: {requirement.title}")
 
             # Step 1: 分析需求
+            logger.info("Step 1: Analyzing requirement")
             yield f"data: {json.dumps({'type': 'progress', 'content': '正在分析需求...'})}\n\n"
             analysis_result = await ai_service.analyze_requirement(
                 requirement.title,
                 requirement.description or ""
             )
+            logger.info(f"Requirement analysis complete: {len(analysis_result.get('test_points', []))} test points")
             yield f"data: {json.dumps({'type': 'analysis', 'content': json.dumps(analysis_result, ensure_ascii=False)})}\n\n"
 
             # Step 2: 生成测试用例
+            logger.info("Step 2: Generating test cases")
             yield f"data: {json.dumps({'type': 'progress', 'content': '正在生成测试用例...'})}\n\n"
             test_types = analysis_result.get("suggested_test_types", ["web"])
 
@@ -218,7 +226,9 @@ async def generate_tests_stream(
             # 解析测试用例
             try:
                 test_cases_data = json.loads(full_response)
+                logger.info(f"Parsed {len(test_cases_data)} test cases from AI response")
             except json.JSONDecodeError:
+                logger.warning("Failed to parse test cases JSON, using empty list")
                 test_cases_data = []
 
             # 保存测试用例
@@ -244,10 +254,12 @@ async def generate_tests_stream(
                         "expected_result": case_data.get("expected_result"),
                         "priority": case_data.get("priority", "medium"),
                     })
+            logger.info(f"Saved {len(saved_cases)} test cases to database")
 
             yield f"data: {json.dumps({'type': 'test_cases', 'content': json.dumps(saved_cases, ensure_ascii=False)})}\n\n"
 
             # Step 3: 生成测试代码
+            logger.info("Step 3: Generating test code")
             yield f"data: {json.dumps({'type': 'progress', 'content': '正在生成测试代码...'})}\n\n"
             test_code_content = await ai_service.generate_test_code(saved_cases, "pytest")
 
@@ -270,14 +282,17 @@ async def generate_tests_stream(
                 status="active",
             )
             db.add(test_code)
+            logger.info(f"Saved test code: {test_code.id}")
 
             # 更新需求状态
             requirement.status = "cases_generated"
             await db.commit()
+            logger.info(f"Requirement {requirement_id} status updated to 'cases_generated'")
 
             yield f"data: {json.dumps({'type': 'done', 'test_code_id': test_code.id, 'requirement_id': requirement_id})}\n\n"
 
         except Exception as e:
+            logger.error(f"Streaming generation error: {e}", exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(
