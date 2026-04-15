@@ -116,10 +116,9 @@ class AIService:
     async def chat(self, messages: list[dict], temperature: float = 0.7) -> str:
         """发送对话请求"""
         url = f"{self.base_url}/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         payload = {
             "model": self.model,
             "messages": messages,
