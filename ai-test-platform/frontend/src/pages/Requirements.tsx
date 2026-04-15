@@ -312,12 +312,22 @@ export function RequirementsPage() {
         onCancel={() => { setStreamModalVisible(false); }}
         closable={!isGenerating}
         maskClosable={!isGenerating}
-        width={800}
+        width={900}
       >
-        <div style={{ maxHeight: 400, overflow: 'auto', marginBottom: 16 }}>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, background: '#f5f5f5', padding: 12 }}>
+        <div style={{ maxHeight: 500, overflow: 'auto', marginBottom: 16 }}>
+          <pre style={{
+            whiteSpace: 'pre-wrap',
+            fontSize: 13,
+            background: '#1e1e1e',
+            color: '#d4d4d4',
+            padding: 16,
+            borderRadius: 4,
+            fontFamily: 'Menlo, Monaco, Consolas, monospace',
+            lineHeight: 1.6,
+            margin: 0
+          }}>
             {streamContent}
-            {isGenerating && <Spin size="small" />}
+            {isGenerating && <Spin size="small" style={{ marginLeft: 8 }} />}
           </pre>
         </div>
 

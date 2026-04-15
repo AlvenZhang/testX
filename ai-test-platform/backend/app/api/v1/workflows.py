@@ -187,18 +187,22 @@ async def generate_tests_stream(
 
             # Step 1: 分析需求
             logger.info("Step 1: Analyzing requirement")
-            yield f"data: {json.dumps({'type': 'progress', 'content': '正在分析需求...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'content': '📋 Step 1/4: 正在分析需求...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'content': '   ├─ 获取需求信息: {requirement.title}'})}\n\n"
             analysis_result = await ai_service.analyze_requirement(
                 requirement.title,
                 requirement.description or ""
             )
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ 解析测试要点: {len(analysis_result.get("test_points", []))} 项'})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   └─ 识别风险点: {len(analysis_result.get("risk_points", []))} 项'})}\n\n"
             logger.info(f"Requirement analysis complete: {len(analysis_result.get('test_points', []))} test points")
             yield f"data: {json.dumps({'type': 'analysis', 'content': json.dumps(analysis_result, ensure_ascii=False)})}\n\n"
 
             # Step 2: 生成测试用例
             logger.info("Step 2: Generating test cases")
-            yield f"data: {json.dumps({'type': 'progress', 'content': '正在生成测试用例...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'content': '📝 Step 2/4: 正在生成测试用例...'})}\n\n"
             test_types = analysis_result.get("suggested_test_types", ["web"])
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ 测试类型: {", ".join(test_types)}'})}\n\n"
 
             # 流式生成测试用例
             cases_prompt = f"""为以下需求生成测试用例：
@@ -224,6 +228,7 @@ async def generate_tests_stream(
                 yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
 
             # 解析测试用例
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ AI 正在生成用例内容...'})}\n\n"
             try:
                 test_cases_data = json.loads(full_response)
                 logger.info(f"Parsed {len(test_cases_data)} test cases from AI response")
@@ -233,6 +238,7 @@ async def generate_tests_stream(
 
             # 保存测试用例
             saved_cases = []
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ 保存 {len(test_cases_data)} 个测试用例到数据库...'})}\n\n"
             for i, case_data in enumerate(test_cases_data):
                 if isinstance(case_data, dict):
                     case_id = f"{requirement_id[:8]}-TC-{i+1:03d}"
@@ -254,13 +260,16 @@ async def generate_tests_stream(
                         "expected_result": case_data.get("expected_result"),
                         "priority": case_data.get("priority", "medium"),
                     })
+                    yield f"data: {json.dumps({'type': 'progress', 'content': f'   │  ├─ [{case_id}] {test_case.title}'})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   └─ 完成! 共保存 {len(saved_cases)} 个用例'})}\n\n"
             logger.info(f"Saved {len(saved_cases)} test cases to database")
 
             yield f"data: {json.dumps({'type': 'test_cases', 'content': json.dumps(saved_cases, ensure_ascii=False)})}\n\n"
 
             # Step 3: 生成测试代码
             logger.info("Step 3: Generating test code")
-            yield f"data: {json.dumps({'type': 'progress', 'content': '正在生成测试代码...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'content': '💻 Step 3/4: 正在生成测试代码...'})}\n\n"
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ 生成 pytest 代码 ({len(saved_cases)} 个用例)'})}\n\n"
             test_code_content = await ai_service.generate_test_code(saved_cases, "pytest")
 
             # 流式返回代码
@@ -271,6 +280,7 @@ async def generate_tests_stream(
                 yield f"data: {json.dumps({'type': 'code_chunk', 'content': chunk})}\n\n"
 
             # 保存测试代码
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   └─ 保存测试代码到数据库...'})}\n\n"
             test_code = TestCode(
                 id=str(uuid.uuid4()),
                 project_id=requirement.project_id,
@@ -289,6 +299,7 @@ async def generate_tests_stream(
             await db.commit()
             logger.info(f"Requirement {requirement_id} status updated to 'cases_generated'")
 
+            yield f"data: {json.dumps({'type': 'progress', 'content': '✅ Step 4/4: 完成! 更新需求状态为"用例已生成"'})}\n\n"
             yield f"data: {json.dumps({'type': 'done', 'test_code_id': test_code.id, 'requirement_id': requirement_id})}\n\n"
 
         except Exception as e:
