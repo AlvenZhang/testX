@@ -1,7 +1,15 @@
 """移动端执行相关 Pydantic schemas"""
 from datetime import datetime
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from pydantic import BaseModel, Field
+
+
+class MobileExecutionRequest(BaseModel):
+    """移动端执行请求"""
+    code_content: str = Field(..., description="Appium 测试代码 (Python)")
+    device_id: str = Field(..., description="设备ID")
+    platform: str = Field(..., description="平台类型: android/ios")
+    test_type: str = Field(default="functional", description="测试类型: functional/performance/ui")
 
 
 class MobileExecutionBase(BaseModel):
@@ -37,6 +45,12 @@ class MobileExecutionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class DeviceListResponse(BaseModel):
+    """设备列表响应"""
+    devices: List[Dict]
+    total: int
 
 
 class MobileExecutionStatusResponse(BaseModel):

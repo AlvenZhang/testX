@@ -24,3 +24,19 @@ class Requirement(Base):
     test_codes = relationship("TestCode", back_populates="requirement")
     versions = relationship("RequirementVersion", back_populates="requirement", cascade="all, delete-orphan")
     code_changes = relationship("CodeChange", back_populates="requirement", cascade="all, delete-orphan")
+
+
+class RequirementVersion(Base):
+    __tablename__ = "requirement_versions"
+
+    id = Column(String(36), primary_key=True)
+    requirement_id = Column(String(36), ForeignKey("requirements.id", ondelete="CASCADE"), nullable=False)
+    version = Column(Integer, nullable=False)
+    title = Column(String(500), nullable=False)
+    description = Column(Text)
+    diff = Column(JSON)
+    created_by = Column(String(36))
+    created_at = Column(DateTime, server_default=func.now())
+
+    # 关系
+    requirement = relationship("Requirement", back_populates="versions")
