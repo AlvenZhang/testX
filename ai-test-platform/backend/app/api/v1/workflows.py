@@ -1,8 +1,11 @@
 """AI 自动化测试生成工作流"""
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
+import json
+import asyncio
 
 from ...core.database import get_db
 from ...services.ai_service import get_ai_service
@@ -154,3 +157,135 @@ async def analyze_impact(
         "impact_analysis": impact_result,
     }
 
+
+
+@router.post("/generate-tests-stream/{requirement_id}")
+async def generate_tests_stream(
+    requirement_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    流式测试生成工作流 - 通过 SSE 流式返回生成进度
+    """
+    async def event_generator():
+        try:
+            # 获取需求
+            result = await db.execute(
+                select(Requirement).where(Requirement.id == requirement_id)
+            )
+            requirement = result.scalar_one_or_none()
+            if not requirement:
+                yield f"data: {json.dumps({'type': 'error', 'content': 'Requirement not found'})}\n\n"
+                return
+
+            ai_service = get_ai_service()
+
+            # Step 1: 分析需求
+            yield f"data: {json.dumps({'type': 'progress', 'content': '正在分析需求...'})}\n\n"
+            analysis_result = await ai_service.analyze_requirement(
+                requirement.title,
+                requirement.description or ""
+            )
+            yield f"data: {json.dumps({'type': 'analysis', 'content': json.dumps(analysis_result, ensure_ascii=False)})}\n\n"
+
+            # Step 2: 生成测试用例
+            yield f"data: {json.dumps({'type': 'progress', 'content': '正在生成测试用例...'})}\n\n"
+            test_types = analysis_result.get("suggested_test_types", ["web"])
+
+            # 流式生成测试用例
+            cases_prompt = f"""为以下需求生成测试用例：
+
+需求标题：{requirement.title}
+需求描述：{requirement.description or ""}
+测试类型：{', '.join(test_types)}
+
+请生成具体的测试用例JSON数组，每个用例包含：
+- title: 用例标题
+- steps: 测试步骤
+- expected_result: 预期结果
+- priority: 优先级
+
+直接返回JSON数组，不要其他内容。"""
+
+            full_response = ""
+            async for chunk in ai_service.chat_stream([
+                {"role": "system", "content": "你是一个专业的测试工程师，只返回JSON数组。"},
+                {"role": "user", "content": cases_prompt}
+            ]):
+                full_response += chunk
+                yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+
+            # 解析测试用例
+            try:
+                test_cases_data = json.loads(full_response)
+            except json.JSONDecodeError:
+                test_cases_data = []
+
+            # 保存测试用例
+            saved_cases = []
+            for i, case_data in enumerate(test_cases_data):
+                if isinstance(case_data, dict):
+                    case_id = f"{requirement_id[:8]}-TC-{i+1:03d}"
+                    test_case = TestCase(
+                        id=str(uuid.uuid4()),
+                        requirement_id=requirement_id,
+                        case_id=case_id,
+                        title=case_data.get("title", f"用例 {i+1}"),
+                        steps=case_data.get("steps"),
+                        expected_result=case_data.get("expected_result"),
+                        priority=case_data.get("priority", "medium"),
+                        status="active",
+                    )
+                    db.add(test_case)
+                    saved_cases.append({
+                        "case_id": case_id,
+                        "title": test_case.title,
+                        "steps": case_data.get("steps"),
+                        "expected_result": case_data.get("expected_result"),
+                        "priority": case_data.get("priority", "medium"),
+                    })
+
+            yield f"data: {json.dumps({'type': 'test_cases', 'content': json.dumps(saved_cases, ensure_ascii=False)})}\n\n"
+
+            # Step 3: 生成测试代码
+            yield f"data: {json.dumps({'type': 'progress', 'content': '正在生成测试代码...'})}\n\n"
+            test_code_content = await ai_service.generate_test_code(saved_cases, "pytest")
+
+            # 流式返回代码
+            async for chunk in ai_service.chat_stream([
+                {"role": "system", "content": "你是一个专业的测试开发工程师。"},
+                {"role": "user", "content": f"根据以下测试用例生成pytest测试代码：\n{json.dumps(saved_cases, ensure_ascii=False)}\n\n只返回代码，不要其他解释。"}
+            ]):
+                yield f"data: {json.dumps({'type': 'code_chunk', 'content': chunk})}\n\n"
+
+            # 保存测试代码
+            test_code = TestCode(
+                id=str(uuid.uuid4()),
+                project_id=requirement.project_id,
+                requirement_id=requirement_id,
+                test_case_ids=[c["case_id"] for c in saved_cases],
+                framework="pytest",
+                code_content=test_code_content,
+                version=1,
+                status="active",
+            )
+            db.add(test_code)
+
+            # 更新需求状态
+            requirement.status = "cases_generated"
+            await db.commit()
+
+            yield f"data: {json.dumps({'type': 'done', 'test_code_id': test_code.id, 'requirement_id': requirement_id})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )

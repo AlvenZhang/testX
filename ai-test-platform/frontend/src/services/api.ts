@@ -109,6 +109,16 @@ export const workflowApi = {
       test_code_id: string;
       test_code_preview: string;
     }>(`/workflows/generate-tests/${requirementId}`),
+  generateTestsStream: (requirementId: string) => {
+    const token = localStorage.getItem('token');
+    return fetch(`${API_BASE}/workflows/generate-tests-stream/${requirementId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  },
 };
 
 // Test Code

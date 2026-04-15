@@ -4,7 +4,7 @@ import hashlib
 import json
 import httpx
 import redis.asyncio as redis
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 from ..core.config import get_settings
 
@@ -130,6 +130,39 @@ class AIService:
             response.raise_for_status()
             data = response.json()
             return data["choices"][0]["message"]["content"]
+
+    async def chat_stream(
+        self,
+        messages: list[dict],
+        temperature: float = 0.7,
+    ) -> AsyncIterator[str]:
+        """流式发送对话请求"""
+        url = f"{self.base_url}/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True
+        }
+
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(data_str)
+                            content = data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except json.JSONDecodeError:
+                            continue
 
     async def analyze_requirement(self, requirement_title: str, requirement_description: str) -> dict[str, Any]:
         """分析需求，生成测试要点"""
