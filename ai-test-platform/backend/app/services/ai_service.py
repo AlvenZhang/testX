@@ -53,7 +53,7 @@ class AIService:
                 except Exception:
                     pass
 
-        response = await self.chat(messages, temperature)
+        response = await self._chat_with_retry(messages, temperature)
 
         if use_cache and response:
             redis_client = await self._get_redis()
@@ -65,16 +65,23 @@ class AIService:
 
         return response
 
-    async def chat_with_retry(
+    async def _chat_with_retry(
         self,
         messages: list[dict],
         temperature: float = 0.7,
         max_attempts: int = 3,
     ) -> str:
-        """带指数退避的重试"""
+        """带指数退避的重试（处理 429 限流）"""
         for attempt in range(max_attempts):
             try:
                 return await self.chat(messages, temperature)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < max_attempts - 1:
+                    # 429 Too Many Requests - 指数退避等待
+                    delay = 2 ** attempt * 5
+                    await asyncio.sleep(delay)
+                    continue
+                raise
             except Exception as e:
                 if attempt == max_attempts - 1:
                     raise
@@ -163,7 +170,7 @@ class AIService:
 
 使用 {framework} 框架，生成可执行的测试代码。
 """
-        response = await self.chat([
+        response = await self._chat_with_retry([
             {"role": "system", "content": "你是一个专业的测试开发工程师，擅长编写高质量的自动化测试代码。"},
             {"role": "user", "content": prompt}
         ])
