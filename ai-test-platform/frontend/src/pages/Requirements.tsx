@@ -23,7 +23,7 @@ const statusOptions = [
 export function RequirementsPage() {
   const [data, setData] = useState<Requirement[]>([]);
   const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm();
@@ -80,7 +80,7 @@ export function RequirementsPage() {
   };
 
   const handleGenerateTests = async (id: string) => {
-    setGenerating(true);
+    setGeneratingIds(prev => new Set(prev).add(id));
     try {
       const res = await workflowApi.generateTests(id);
       const { analysis, test_cases, test_code_preview } = res.data;
@@ -113,7 +113,11 @@ export function RequirementsPage() {
     } catch (err: unknown) {
       message.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '生成失败');
     } finally {
-      setGenerating(false);
+      setGeneratingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -141,7 +145,7 @@ export function RequirementsPage() {
             size="small"
             type="primary"
             icon={<RocketOutlined />}
-            loading={generating}
+            loading={generatingIds.has(record.id)}
             onClick={() => handleGenerateTests(record.id)}
           >
             AI 生成
