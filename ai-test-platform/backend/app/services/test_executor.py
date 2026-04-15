@@ -128,7 +128,7 @@ class TestExecutor:
             }
         except Exception as e:
             return {
-                "status": "error",
+                "status": "failed",
                 "error": str(e),
                 "logs": "",
                 "report": None,
@@ -197,7 +197,7 @@ class TestExecutor:
             }
         except Exception as e:
             return {
-                "status": "error",
+                "status": "failed",
                 "error": str(e),
                 "logs": "",
             }

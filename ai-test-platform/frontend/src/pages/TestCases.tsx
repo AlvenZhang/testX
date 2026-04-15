@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Select, message, Space, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { testCaseApi, requirementApi } from '../services/api';
-import type { TestCase, Requirement } from '../types';
+import { testCaseApi, requirementApi, projectApi } from '../services/api';
+import type { TestCase, Requirement, Project } from '../types';
 
 export function TestCasesPage() {
   const [data, setData] = useState<TestCase[]>([]);
@@ -12,10 +12,21 @@ export function TestCasesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm();
   const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  const fetchProjects = async () => {
+    const res = await projectApi.list();
+    setProjects(res.data);
+  };
 
   const fetchRequirements = async () => {
-    const res = await requirementApi.list('all');
-    setRequirements(res.data);
+    if (projects.length === 0) return;
+    try {
+      const reqs = await Promise.all(projects.map(p => requirementApi.list(p.id)));
+      setRequirements(reqs.flatMap(r => r.data));
+    } catch {
+      message.error('获取需求列表失败');
+    }
   };
 
   const fetchData = async () => {
@@ -31,7 +42,8 @@ export function TestCasesPage() {
     }
   };
 
-  useEffect(() => { fetchRequirements(); }, []);
+  useEffect(() => { fetchProjects(); }, []);
+  useEffect(() => { if (projects.length > 0) fetchRequirements(); }, [projects]);
   useEffect(() => { if (requirements.length > 0) fetchData(); }, [requirements]);
 
   const handleSubmit = async () => {
