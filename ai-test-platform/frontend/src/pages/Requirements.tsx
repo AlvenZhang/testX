@@ -42,6 +42,8 @@ export function RequirementsPage() {
   const [testCasesContent, setTestCasesContent] = useState<any[]>([]);
   const [codeContent, setCodeContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [lastGeneratedId, setLastGeneratedId] = useState<string | null>(null);
+  const [hasResults, setHasResults] = useState(false);
 
   const fetchProjects = async () => {
     const res = await projectApi.list();
@@ -94,12 +96,20 @@ export function RequirementsPage() {
   };
 
   const handleGenerateTestsStream = async (id: string) => {
+    // 如果已有结果，直接显示
+    if (hasResults && lastGeneratedId === id) {
+      setStreamModalVisible(true);
+      return;
+    }
+
     setGeneratingIds(prev => new Set(prev).add(id));
     setStreamModalVisible(true);
     setStreamContent('正在连接 AI 服务...');
     setTestCasesContent([]);
     setCodeContent('');
     setIsGenerating(true);
+    setHasResults(false);
+    setLastGeneratedId(null);
 
     try {
       const response = await workflowApi.generateTestsStream(id);
@@ -154,6 +164,8 @@ export function RequirementsPage() {
                 case 'done':
                   setStreamContent(prev => prev + '\n\n✅ 测试代码生成完成！');
                   setIsGenerating(false);
+                  setHasResults(true);
+                  setLastGeneratedId(id);
                   message.success('生成完成！');
                   break;
                 case 'error':
@@ -252,14 +264,16 @@ export function RequirementsPage() {
 
       {/* 流式生成弹窗 */}
       <Modal
-        title="AI 正在生成测试..."
+        title={isGenerating ? "AI 正在生成测试..." : "AI 测试生成结果"}
         open={streamModalVisible}
         footer={[
-          <Button key="close" onClick={() => { setStreamModalVisible(false); fetchData(); }}>
+          <Button key="close" onClick={() => { setStreamModalVisible(false); }}>
             关闭
           </Button>
         ]}
-        onCancel={() => { setStreamModalVisible(false); fetchData(); }}
+        onCancel={() => { setStreamModalVisible(false); }}
+        closable={!isGenerating}
+        maskClosable={!isGenerating}
         width={800}
       >
         <div style={{ maxHeight: 400, overflow: 'auto', marginBottom: 16 }}>
