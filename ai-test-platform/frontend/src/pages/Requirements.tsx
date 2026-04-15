@@ -114,12 +114,19 @@ export function RequirementsPage() {
   };
 
   const handleGenerateTestsStream = async (id: string) => {
-    // 如果已有结果，直接显示
-    if (hasResults && lastGeneratedId === id) {
-      setStreamModalVisible(true);
+    // 如果正在生成中，点击按钮切换显示/隐藏
+    if (generatingIds.has(id)) {
+      setStreamModalVisible(prev => !prev);
       return;
     }
 
+    // 如果已有结果，点击按钮切换显示/隐藏
+    if (hasResults && lastGeneratedId === id) {
+      setStreamModalVisible(prev => !prev);
+      return;
+    }
+
+    // 开始新的生成
     setGeneratingIds(prev => new Set(prev).add(id));
     setStreamModalVisible(true);
     setStreamContent('正在连接 AI 服务...');
