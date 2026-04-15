@@ -13,9 +13,18 @@ class AIService:
 
     def __init__(self) -> None:
         settings = get_settings()
-        self.api_key = settings.ai_api_key
-        self.model = settings.ai_model
-        self.base_url = settings.ai_base_url
+        self.provider = settings.ai_provider
+
+        # 根据 provider 选择配置
+        if self.provider == "minimax":
+            self.api_key = settings.minimax_api_key
+            self.model = settings.minimax_model
+            self.base_url = settings.minimax_base_url
+        else:
+            self.api_key = settings.ai_api_key
+            self.model = settings.ai_model
+            self.base_url = settings.ai_base_url
+
         self.redis_client: Optional[redis.Redis] = None
         self.cache_ttl = 3600  # 缓存1小时
 
