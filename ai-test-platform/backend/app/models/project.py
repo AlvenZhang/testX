@@ -1,7 +1,6 @@
 from sqlalchemy import Column, String, Text, JSON, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-
 from ..core.database import Base
 
 
@@ -19,6 +18,4 @@ class Project(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # 关系
-    members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
-    requirements = relationship("Requirement", back_populates="project", cascade="all, delete-orphan")
-    test_codes = relationship("TestCode", back_populates="project")
+    members = relationship("ProjectMember", back_populates="project")

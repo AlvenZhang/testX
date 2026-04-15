@@ -19,9 +19,7 @@ class TestCode(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # 关系
-    project = relationship("Project", back_populates="test_codes")
-    requirement = relationship("Requirement", back_populates="test_codes")
-    history = relationship("TestCodeHistory", back_populates="test_code", cascade="all, delete-orphan")
+    history = relationship("TestCodeHistory", back_populates="test_code")
 
 
 class TestCodeHistory(Base):

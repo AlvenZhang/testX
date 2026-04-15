@@ -19,11 +19,7 @@ class Requirement(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # 关系
-    project = relationship("Project", back_populates="requirements")
-    test_cases = relationship("TestCase", back_populates="requirement", cascade="all, delete-orphan")
-    test_codes = relationship("TestCode", back_populates="requirement")
-    versions = relationship("RequirementVersion", back_populates="requirement", cascade="all, delete-orphan")
-    code_changes = relationship("CodeChange", back_populates="requirement", cascade="all, delete-orphan")
+    test_cases = relationship("TestCase", back_populates="requirement")
 
 
 class RequirementVersion(Base):
@@ -37,6 +33,3 @@ class RequirementVersion(Base):
     diff = Column(JSON)
     created_by = Column(String(36))
     created_at = Column(DateTime, server_default=func.now())
-
-    # 关系
-    requirement = relationship("Requirement", back_populates="versions")

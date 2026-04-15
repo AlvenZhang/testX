@@ -1,7 +1,8 @@
 import { Card } from 'antd';
-import Editor, { OnMount } from '@monaco-editor/react';
+import Editor from '@monaco-editor/react';
 import { useRef } from 'react';
 import type { editor } from 'monaco-editor';
+import type { OnMount } from '@monaco-editor/react';
 
 export interface MonacoEditorProps {
   value: string;
