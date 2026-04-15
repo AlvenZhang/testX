@@ -21,6 +21,10 @@ class AIService:
             self.api_key = settings.minimax_api_key
             self.model = settings.minimax_model
             self.base_url = settings.minimax_base_url
+        elif self.provider == "ollama":
+            self.api_key = ""  # Ollama 不需要 API key
+            self.model = settings.ollama_model
+            self.base_url = settings.ollama_base_url
         else:
             self.api_key = settings.ai_api_key
             self.model = settings.ai_model
