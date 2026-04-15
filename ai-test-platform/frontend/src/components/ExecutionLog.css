@@ -1,0 +1,64 @@
+.execution-log-container {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  padding: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 4px;
+}
+
+.log-line {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.log-timestamp {
+  color: #6a9955;
+  flex-shrink: 0;
+}
+
+.log-level-indicator {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+.log-message {
+  flex: 1;
+  word-break: break-all;
+}
+
+.log-error .log-message {
+  color: #f48771;
+}
+
+.log-warning .log-message {
+  color: #dcdcaa;
+}
+
+.log-success .log-message {
+  color: #6a9955;
+}
+
+/* Scrollbar styling */
+.execution-log-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.execution-log-container::-webkit-scrollbar-track {
+  background: #2d2d2d;
+}
+
+.execution-log-container::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  border-radius: 4px;
+}
+
+.execution-log-container::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5a;
+}
