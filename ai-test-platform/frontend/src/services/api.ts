@@ -143,6 +143,16 @@ export const executionApi = {
       logs: string;
       duration_ms: number;
     }>(`/executions/run/${testCodeId}`),
+  runStream: (testCodeId: string) => {
+    const token = localStorage.getItem('token');
+    return fetch(`${API_BASE}/executions/run-stream/${testCodeId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  },
 };
 
 // Mobile Executions

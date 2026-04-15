@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, message, Space, Tag, Drawer, Select } from 'antd';
+import { Table, Button, message, Space, Tag, Drawer, Select, Modal, Spin } from 'antd';
 import { PlayCircleOutlined, CodeOutlined } from '@ant-design/icons';
 import { testCodeApi, projectApi, executionApi } from '../services/api';
 import { MonacoEditor } from '../components/MonacoEditor';
@@ -15,6 +15,15 @@ interface TestCodeItem {
   created_at: string;
 }
 
+interface StreamMessage {
+  type: 'progress' | 'log' | 'done' | 'error';
+  content?: string;
+  status?: string;
+  exit_code?: number;
+  duration_ms?: number;
+  logs?: string;
+}
+
 export function TestCodePage() {
   const [data, setData] = useState<TestCodeItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,6 +34,8 @@ export function TestCodePage() {
   const [logVisible, setLogVisible] = useState(false);
   const [execResult, setExecResult] = useState<{ logs: string; status: string; duration_ms: number } | null>(null);
   const [editorLanguage, setEditorLanguage] = useState('python');
+  const [streamLogs, setStreamLogs] = useState('');
+  const [isExecuting, setIsExecuting] = useState(false);
 
   const fetchProjects = async () => {
     const res = await projectApi.list();
@@ -48,14 +59,74 @@ export function TestCodePage() {
   useEffect(() => { if (projects.length > 0) fetchData(); }, [projects]);
 
   const handleRun = async (id: string) => {
+    // 如果正在执行，点击切换显示/隐藏弹窗
+    if (running === id) {
+      setLogVisible(prev => !prev);
+      return;
+    }
+
     setRunning(id);
+    setIsExecuting(true);
+    setStreamLogs('正在连接执行服务...\n');
+    setLogVisible(true);
+
     try {
-      const res = await executionApi.run(id);
-      setExecResult(res.data);
-      setLogVisible(true);
-      message.success('执行完成');
+      const response = await executionApi.runStream(id);
+      if (!response.body) {
+        throw new Error('No response body');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const msg: StreamMessage = JSON.parse(line.slice(6));
+
+              switch (msg.type) {
+                case 'progress':
+                  setStreamLogs(prev => prev + msg.content + '\n');
+                  break;
+                case 'log':
+                  setStreamLogs(prev => prev + msg.content + '\n');
+                  break;
+                case 'done':
+                  setStreamLogs(prev => prev + '\n✅ 执行完成!\n');
+                  setExecResult({
+                    logs: msg.logs || '',
+                    status: msg.status || 'unknown',
+                    duration_ms: msg.duration_ms || 0,
+                  });
+                  setIsExecuting(false);
+                  message.success('执行完成');
+                  break;
+                case 'error':
+                  setStreamLogs(prev => prev + '\n❌ 错误: ' + msg.content + '\n');
+                  setIsExecuting(false);
+                  message.error(msg.content || '执行失败');
+                  break;
+              }
+            } catch (e) {
+              console.error('Parse error:', e);
+            }
+          }
+        }
+      }
     } catch (err: unknown) {
-      message.error((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '执行失败');
+      const errorMsg = (err as { message?: string })?.message || '执行失败';
+      setStreamLogs(prev => prev + '\n❌ ' + errorMsg + '\n');
+      setIsExecuting(false);
+      message.error(errorMsg);
     } finally {
       setRunning(null);
     }
@@ -91,8 +162,14 @@ export function TestCodePage() {
       key: 'action',
       render: (_: unknown, record: TestCodeItem) => (
         <Space>
-          <Button size="small" type="primary" icon={<PlayCircleOutlined />} loading={running === record.id} onClick={() => handleRun(record.id)}>
-            执行
+          <Button
+            size="small"
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            loading={running === record.id && isExecuting}
+            onClick={() => handleRun(record.id)}
+          >
+            {running === record.id && !isExecuting ? '查看' : '执行'}
           </Button>
           <Button size="small" icon={<CodeOutlined />} onClick={() => handleViewCode(record.id)}>
             查看代码
@@ -134,26 +211,56 @@ export function TestCodePage() {
         />
       </Drawer>
 
-      {/* 执行日志抽屉 */}
-      <Drawer title="执行结果" open={logVisible} onClose={() => setLogVisible(false)} width={700}>
-        {execResult && (
+      {/* 执行日志弹窗 */}
+      <Modal
+        title={isExecuting ? "🔄 执行中..." : "✅ 执行结果"}
+        open={logVisible}
+        onCancel={() => !isExecuting && setLogVisible(false)}
+        closable={!isExecuting}
+        maskClosable={!isExecuting}
+        footer={[
+          <Button key="close" onClick={() => setLogVisible(false)} disabled={isExecuting}>
+            关闭
+          </Button>
+        ]}
+        width={800}
+      >
+        <div style={{ maxHeight: 500, overflow: 'auto', marginBottom: 16 }}>
+          <pre style={{
+            whiteSpace: 'pre-wrap',
+            fontSize: 13,
+            background: '#1e1e1e',
+            color: '#d4d4d4',
+            padding: 16,
+            borderRadius: 4,
+            fontFamily: 'Menlo, Monaco, Consolas, monospace',
+            lineHeight: 1.6,
+            margin: 0
+          }}>
+            {streamLogs}
+            {isExecuting && <Spin size="small" style={{ marginLeft: 8 }} />}
+          </pre>
+        </div>
+        {execResult && !isExecuting && (
           <div>
-            <p>
-              <Tag color={execResult.status === 'success' ? 'green' : 'red'}>
-                状态: {execResult.status}
-              </Tag>
-              <Tag style={{ marginLeft: 8 }}>耗时: {execResult.duration_ms}ms</Tag>
-            </p>
-            <h4>日志:</h4>
-            <MonacoEditor
-              value={execResult.logs || '无日志输出'}
-              language="plaintext"
-              readOnly={true}
-              height="400px"
-            />
+            <Tag color={execResult.status === 'success' ? 'green' : 'red'} style={{ marginBottom: 8 }}>
+              状态: {execResult.status}
+            </Tag>
+            <Tag style={{ marginBottom: 8 }}>耗时: {execResult.duration_ms}ms</Tag>
+            {execResult.logs && (
+              <>
+                <h4>详细日志:</h4>
+                <MonacoEditor
+                  value={execResult.logs}
+                  language="plaintext"
+                  readOnly={true}
+                  height="200px"
+                />
+              </>
+            )}
           </div>
         )}
-      </Drawer>
+      </Modal>
     </div>
   );
 }
