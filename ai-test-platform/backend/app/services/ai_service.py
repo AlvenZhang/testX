@@ -90,6 +90,11 @@ class AIService:
                     delay = 2 ** attempt * 5
                     await asyncio.sleep(delay)
                     continue
+                elif e.response.status_code == 529 and attempt < max_attempts - 1:
+                    # 529 Overloaded - 服务负载高，等待后重试
+                    delay = 2 ** attempt * 10
+                    await asyncio.sleep(delay)
+                    continue
                 raise
             except Exception as e:
                 if attempt == max_attempts - 1:
