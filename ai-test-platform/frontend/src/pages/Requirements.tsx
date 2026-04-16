@@ -172,13 +172,20 @@ export function RequirementsPage() {
                   }
                   break;
                 case 'chunk':
+                  // 累加原始chunk用于解析
                   setTestCasesContent(prev => [...prev, msg.content]);
+                  // 不直接显示原始chunk，只显示进度
+                  setStreamContent(prev => prev + '·');
                   break;
                 case 'test_cases':
                   try {
                     const cases = JSON.parse(msg.content || '[]');
+                    // 显示格式化后的用例列表
+                    setStreamContent(prev => prev + `\n\n📋 生成测试用例完成！共 ${cases.length} 个用例:\n`);
+                    cases.forEach((c: any, i: number) => {
+                      setStreamContent(prev => prev + `   ${i + 1}. ${c.title || '用例' + (i+1)} (${c.priority || 'medium'})\n`);
+                    });
                     setTestCasesContent(cases);
-                    setStreamContent(prev => prev + `\n生成测试用例完成！共 ${cases.length} 个用例`);
                   } catch {
                     setStreamContent(prev => prev + '\n用例生成完成');
                   }
@@ -192,6 +199,8 @@ export function RequirementsPage() {
                   setHasResults(true);
                   setLastGeneratedId(id);
                   message.success('生成完成！');
+                  // 刷新需求列表，更新状态
+                  fetchData();
                   break;
                 case 'error':
                   setStreamContent(prev => prev + '\n❌ 错误: ' + msg.content);
