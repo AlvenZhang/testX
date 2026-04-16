@@ -172,9 +172,7 @@ export function RequirementsPage() {
                   }
                   break;
                 case 'chunk':
-                  // 累加原始chunk用于解析
-                  setTestCasesContent(prev => [...prev, msg.content]);
-                  // 不直接显示原始chunk，只显示进度
+                  // 只在日志中显示进度，不累积到 testCasesContent
                   setStreamContent(prev => prev + '·');
                   break;
                 case 'test_cases':
@@ -185,6 +183,7 @@ export function RequirementsPage() {
                     cases.forEach((c: any, i: number) => {
                       setStreamContent(prev => prev + `   ${i + 1}. ${c.title || '用例' + (i+1)} (${c.priority || 'medium'})\n`);
                     });
+                    // 只在这里设置 testCasesContent
                     setTestCasesContent(cases);
                   } catch {
                     setStreamContent(prev => prev + '\n用例生成完成');
