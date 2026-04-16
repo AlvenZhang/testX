@@ -249,6 +249,18 @@ async def generate_tests_stream(
             # 保存测试用例
             saved_cases = []
             valid_priorities = {"low", "medium", "high"}
+
+            # 先删除该需求下已有的测试用例，避免 case_id 重复
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ 清除旧测试用例...'})}\n\n"
+            from ...models.test_case import TestCase as TCModel
+            old_cases_result = await db.execute(
+                select(TCModel).where(TCModel.requirement_id == requirement_id)
+            )
+            old_cases = old_cases_result.scalars().all()
+            for old_case in old_cases:
+                await db.delete(old_case)
+            yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ 已清除 {len(old_cases)} 个旧用例'})}\n\n"
+
             yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ 保存 {len(test_cases_data)} 个测试用例到数据库...'})}\n\n"
             for i, case_data in enumerate(test_cases_data):
                 # 验证数据类型
