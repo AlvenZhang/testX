@@ -227,7 +227,7 @@ async def generate_tests_stream(
 
             full_response = ""
             async for chunk in ai_service.chat_stream([
-                {"role": "system", "content": "你是一个专业的测试工程师。你的任务是根据需求生成测试用例。必须严格返回JSON数组格式，不要包含任何其他文字。"'},
+                {"role": "system", "content": "你是一个专业的测试工程师。你的任务是根据需求生成测试用例。必须严格返回JSON数组格式，不要包含任何其他文字。"},
                 {"role": "user", "content": cases_prompt}
             ]):
                 full_response += chunk
