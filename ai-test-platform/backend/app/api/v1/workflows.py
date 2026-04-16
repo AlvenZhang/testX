@@ -211,17 +211,23 @@ async def generate_tests_stream(
 需求描述：{requirement.description or ""}
 测试类型：{', '.join(test_types)}
 
-请生成具体的测试用例JSON数组，每个用例包含：
-- title: 用例标题
-- steps: 测试步骤
-- expected_result: 预期结果
-- priority: 优先级
+【重要】你必须返回严格的JSON数组格式，每个元素包含以下字段：
+- title: string，用例标题，必填
+- steps: string，测试步骤，必填
+- expected_result: string，预期结果，必填
+- priority: string，优先级，只能是 "low" | "medium" | "high" 之一
 
-直接返回JSON数组，不要其他内容。"""
+示例格式：
+[
+  {{"title": "登录成功-正确账号密码", "steps": "1. 打开APP\\n2. 输入正确账号\\n3. 输入正确密码\\n4. 点击登录", "expected_result": "登录成功，跳转到首页", "priority": "high"}},
+  {{"title": "登录失败-错误密码", "steps": "1. 打开APP\\n2. 输入正确账号\\n3. 输入错误密码\\n4. 点击登录", "expected_result": "提示密码错误", "priority": "high"}}
+]
+
+只返回上述JSON数组，不要包含任何其他文字或解释。"""
 
             full_response = ""
             async for chunk in ai_service.chat_stream([
-                {"role": "system", "content": "你是一个专业的测试工程师，只返回JSON数组。"},
+                {"role": "system", "content": "你是一个专业的测试工程师。你的任务是根据需求生成测试用例。必须严格返回JSON数组格式，不要包含任何其他文字。"'},
                 {"role": "user", "content": cases_prompt}
             ]):
                 full_response += chunk
@@ -231,36 +237,61 @@ async def generate_tests_stream(
             yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ AI 正在生成用例内容...'})}\n\n"
             try:
                 test_cases_data = json.loads(full_response)
+                # 验证是数组
+                if not isinstance(test_cases_data, list):
+                    logger.warning(f"AI returned non-array: {type(test_cases_data)}")
+                    test_cases_data = []
                 logger.info(f"Parsed {len(test_cases_data)} test cases from AI response")
-            except json.JSONDecodeError:
-                logger.warning("Failed to parse test cases JSON, using empty list")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse test cases JSON: {e}, response: {full_response[:500]}")
                 test_cases_data = []
 
             # 保存测试用例
             saved_cases = []
+            valid_priorities = {"low", "medium", "high"}
             yield f"data: {json.dumps({'type': 'progress', 'content': f'   ├─ 保存 {len(test_cases_data)} 个测试用例到数据库...'})}\n\n"
             for i, case_data in enumerate(test_cases_data):
-                if isinstance(case_data, dict):
-                    case_id = f"{requirement_id[:8]}-TC-{i+1:03d}"
-                    test_case = TestCase(
-                        id=str(uuid.uuid4()),
-                        requirement_id=requirement_id,
-                        case_id=case_id,
-                        title=case_data.get("title", f"用例 {i+1}"),
-                        steps=case_data.get("steps"),
-                        expected_result=case_data.get("expected_result"),
-                        priority=case_data.get("priority", "medium"),
-                        status="active",
-                    )
-                    db.add(test_case)
-                    saved_cases.append({
-                        "case_id": case_id,
-                        "title": test_case.title,
-                        "steps": case_data.get("steps"),
-                        "expected_result": case_data.get("expected_result"),
-                        "priority": case_data.get("priority", "medium"),
-                    })
-                    yield f"data: {json.dumps({'type': 'progress', 'content': f'   │  ├─ [{case_id}] {test_case.title}'})}\n\n"
+                # 验证数据类型
+                if not isinstance(case_data, dict):
+                    logger.warning(f"Skipping invalid case data (not a dict): {case_data}")
+                    continue
+
+                # 提取并验证字段
+                title = case_data.get("title", f"用例 {i+1}")
+                steps = case_data.get("steps", "")
+                expected_result = case_data.get("expected_result", "")
+                priority = case_data.get("priority", "medium")
+
+                # 确保是字符串
+                if not isinstance(title, str):
+                    title = str(title) if title else f"用例 {i+1}"
+                if not isinstance(steps, str):
+                    steps = str(steps) if steps else ""
+                if not isinstance(expected_result, str):
+                    expected_result = str(expected_result) if expected_result else ""
+                if not isinstance(priority, str) or priority not in valid_priorities:
+                    priority = "medium"
+
+                case_id = f"{requirement_id[:8]}-TC-{i+1:03d}"
+                test_case = TestCase(
+                    id=str(uuid.uuid4()),
+                    requirement_id=requirement_id,
+                    case_id=case_id,
+                    title=title,
+                    steps=steps,
+                    expected_result=expected_result,
+                    priority=priority,
+                    status="active",
+                )
+                db.add(test_case)
+                saved_cases.append({
+                    "case_id": case_id,
+                    "title": title,
+                    "steps": steps,
+                    "expected_result": expected_result,
+                    "priority": priority,
+                })
+                yield f"data: {json.dumps({'type': 'progress', 'content': f'   │  ├─ [{case_id}] {title}'})}\n\n"
             yield f"data: {json.dumps({'type': 'progress', 'content': f'   └─ 完成! 共保存 {len(saved_cases)} 个用例'})}\n\n"
             logger.info(f"Saved {len(saved_cases)} test cases to database")
 
